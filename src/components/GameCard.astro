@@ -1,0 +1,148 @@
+---
+interface Props {
+  title: string;
+  cover: string;
+  tags: string[];
+  size?: string;
+  id: string;
+}
+
+const { title, cover, tags, size, id } = Astro.props;
+---
+
+<a href={`/games/${id}`} class="game-card">
+  <div class="card-image">
+    {cover ? (
+      <img src={cover} alt={title} loading="lazy" />
+    ) : (
+      <div class="card-placeholder">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="6" width="20" height="12" rx="2"/>
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M7 10v4"/>
+          <path d="M5 12h4"/>
+          <circle cx="17" cy="12" r="0.5" fill="currentColor"/>
+          <circle cx="19" cy="10" r="0.5" fill="currentColor"/>
+        </svg>
+      </div>
+    )}
+    {size && <span class="card-size-badge">{size}</span>}
+  </div>
+  <div class="card-info">
+    <h6 class="card-title">{title}</h6>
+    {tags.length > 0 && (
+      <p class="card-tags">
+        {tags.map((tag) => (
+          <span class="tag">[{tag}]</span>
+        ))}
+      </p>
+    )}
+  </div>
+</a>
+
+<style>
+  .game-card {
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .game-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .game-card:hover .card-title {
+    color: var(--accent);
+  }
+
+  .card-image {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+
+  .game-card:hover .card-image img {
+    transform: scale(1.03);
+  }
+
+  .game-card:hover .card-image {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(79, 195, 247, 0.15);
+  }
+
+  .card-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+  }
+
+  .card-placeholder svg {
+    opacity: 0.3;
+  }
+
+  .card-size-badge {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--text-primary);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    backdrop-filter: blur(4px);
+  }
+
+  .card-info {
+    padding: 0.6rem 0.2rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.2s;
+  }
+
+  .card-tags {
+    font-size: 0.72rem;
+    color: var(--accent-orange);
+    font-weight: 500;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .tag {
+    white-space: nowrap;
+  }
+
+  .card-title:hover {
+    color: var(--accent);
+  }
+</style>

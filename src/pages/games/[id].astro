@@ -1,0 +1,223 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Navbar from "../../components/Navbar.astro";
+import Footer from "../../components/Footer.astro";
+import { games } from "../../data/games";
+
+export function getStaticPaths() {
+  return games.map((game) => ({
+    params: { id: game.id },
+  }));
+}
+
+const { id } = Astro.params;
+const game = games.find((g) => g.id === id);
+---
+
+<Layout title={game ? `${game.title} - JUEGOS` : "JUEGOS"}>
+  <Navbar />
+
+  <main class="main-content">
+    {game ? (
+      <div class="content-container">
+        <a href="/" class="back-link">&larr; Volver a JUEGOS</a>
+
+        <div class="game-detail">
+          <div class="game-cover">
+            {game.cover ? (
+              <img src={game.cover} alt={game.title} />
+            ) : (
+              <div class="cover-placeholder">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="6" width="20" height="12" rx="2"/>
+                  <circle cx="12" cy="12" r="2"/>
+                  <path d="M7 10v4"/>
+                  <path d="M5 12h4"/>
+                  <circle cx="17" cy="12" r="0.5" fill="currentColor"/>
+                  <circle cx="19" cy="10" r="0.5" fill="currentColor"/>
+                </svg>
+              </div>
+            )}
+          </div>
+
+          <div class="game-info">
+            <h1 class="game-title">{game.title}</h1>
+
+            {game.description && (
+              <p class="game-description">{game.description}</p>
+            )}
+
+            {game.tags.length > 0 && (
+              <div class="game-tags">
+                {game.tags.map((tag) => (
+                  <span class="tag">{tag}</span>
+                ))}
+              </div>
+            )}
+
+            <div class="game-meta">
+              {game.category && (
+                <span class="meta-item">
+                  Categoria: <strong>{game.category}</strong>
+                </span>
+              )}
+              {game.size && (
+                <span class="meta-item">
+                  Tamano: <strong>{game.size}</strong>
+                </span>
+              )}
+            </div>
+
+            {id === "block-breaker" && (
+              <a href="/jugar/block-breaker" class="play-button">Jugar ahora</a>
+            )}
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class="content-container">
+        <h1 class="not-found-title">404: Juego no encontrado</h1>
+        <a href="/" class="back-link">&larr; Volver a JUEGOS</a>
+      </div>
+    )}
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  .main-content {
+    min-height: calc(100vh - 56px);
+  }
+
+  .content-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  .back-link {
+    display: inline-block;
+    font-size: 0.82rem;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    transition: color 0.2s;
+  }
+
+  .back-link:hover {
+    color: var(--text-primary);
+  }
+
+  .game-detail {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  .game-cover {
+    flex-shrink: 0;
+    width: 400px;
+    aspect-ratio: 16 / 10;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .game-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    opacity: 0.3;
+  }
+
+  .game-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .game-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  .game-description {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+
+  .game-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .tag {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+
+  .game-meta {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  .meta-item strong {
+    color: var(--text-primary);
+  }
+
+  .play-button {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.7rem 2rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  .play-button:hover {
+    background: #29b6f6;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 195, 247, 0.3);
+  }
+
+  .not-found-title {
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 700px) {
+    .game-detail {
+      flex-direction: column;
+    }
+
+    .game-cover {
+      width: 100%;
+    }
+  }
+</style>
