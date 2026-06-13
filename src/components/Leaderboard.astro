@@ -169,14 +169,16 @@ const {
       }
     }
 
-    // --- Eventos del juego ---
-    window.addEventListener("bb:gameover", (e: Event) => {
+    // --- Eventos del juego (contrato genérico engine/events.ts) ---
+    window.addEventListener("game:over", (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       if (detail.gameId && detail.gameId !== gameId) return;
       pendingScore = Number(detail.score ?? 0);
       refreshRecordUI();
     });
-    window.addEventListener("bb:restart", () => {
+    window.addEventListener("game:restart", (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.gameId && detail.gameId !== gameId) return;
       pendingScore = null;
       refreshRecordUI();
     });

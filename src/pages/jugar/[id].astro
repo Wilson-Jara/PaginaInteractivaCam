@@ -1,0 +1,27 @@
+---
+// ============================================================
+//  RUTA DINÁMICA DE JUEGO — /jugar/<id>
+// ============================================================
+//  Una sola ruta para TODOS los juegos jugables. Pre-renderiza
+//  una página por cada id registrado en el gameRegistry y monta
+//  el GameShell, que carga el motor + el juego en el cliente.
+// ============================================================
+import Layout from "../../layouts/Layout.astro";
+import Navbar from "../../components/Navbar.astro";
+import GameShell from "../../components/GameShell.astro";
+import { games } from "../../data/games";
+import { playableIds } from "../../lib/gameRegistry";
+
+export function getStaticPaths() {
+  return playableIds().map((id) => ({ params: { id } }));
+}
+
+const { id } = Astro.params;
+const game = games.find((g) => g.id === id);
+const title = game ? `${game.title} - JUEGOS` : "JUEGOS";
+---
+
+<Layout title={title}>
+  <Navbar />
+  <GameShell gameId={id!} />
+</Layout>

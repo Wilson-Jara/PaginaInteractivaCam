@@ -8,6 +8,8 @@ export interface Game {
   description?: string;
   pythonBackend?: boolean;
   mediapipe?: boolean;
+  /** true si el juego tiene versión web jugable (registrada en gameRegistry). */
+  playable?: boolean;
 }
 
 export const games: Game[] = [
@@ -21,6 +23,7 @@ export const games: Game[] = [
     description: "Rompe bloques controlando la paleta con tu mano mediante MediaPipe. Incluye power-ups, múltiples niveles y cámara en tiempo real.",
     pythonBackend: true,
     mediapipe: true,
+    playable: true,
   },
   ...Array.from({ length: 29 }, (_, i) => ({
     id: `juego-${i + 2}`,
@@ -32,6 +35,7 @@ export const games: Game[] = [
     description: "",
     pythonBackend: true,
     mediapipe: i % 3 === 0,
+    playable: false,
   })),
 ];
 

@@ -1,0 +1,139 @@
+---
+// ============================================================
+//  GAME SHELL — contenedor reutilizable para cualquier CameraGame
+// ============================================================
+//  Monta el layout común (lienzo + leaderboard + panel de cámara +
+//  espacio para imagen) y arranca el motor cargando el juego por
+//  su `gameId` desde el registry. Sirve para TODOS los juegos.
+//
+//  Props:
+//   - gameId: id del juego (debe existir en gameRegistry y games.ts).
+// ============================================================
+import Leaderboard from "./Leaderboard.astro";
+
+interface Props {
+  gameId: string;
+}
+const { gameId } = Astro.props;
+---
+
+<div id="game-wrapper" data-game-shell data-game-id={gameId}>
+  <aside id="leaderboard-side">
+    <Leaderboard gameId={gameId} interactive={true} />
+  </aside>
+
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="loading">Iniciando...</div>
+  </div>
+
+  <div id="right-col">
+    <div id="cam-box">
+      <video id="camVideo" autoplay playsinline muted></video>
+      <canvas id="camOverlay"></canvas>
+      <span id="cam-label">📷 Cámara</span>
+    </div>
+    <div id="img-box">
+      <span class="img-placeholder">Espacio para imagen</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { getGameFactory } from "../lib/gameRegistry";
+  import { HandTracker } from "../engine/HandTracker";
+  import { GameRuntime } from "../engine/GameRuntime";
+
+  const shell = document.querySelector<HTMLElement>("[data-game-shell]");
+  const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement | null;
+  const video = document.getElementById("camVideo") as HTMLVideoElement | null;
+  const overlay = document.getElementById("camOverlay") as HTMLCanvasElement | null;
+  const camLabel = document.getElementById("cam-label");
+  const loadingEl = document.getElementById("loading");
+
+  function setLoading(message: string, hideAfterMs?: number) {
+    if (!loadingEl) return;
+    loadingEl.textContent = message;
+    loadingEl.style.display = "block";
+    if (hideAfterMs) setTimeout(() => (loadingEl.style.display = "none"), hideAfterMs);
+  }
+
+  async function boot() {
+    if (!shell || !canvas || !video) return;
+    const gameId = shell.dataset.gameId || "";
+    const factory = getGameFactory(gameId);
+    if (!factory) {
+      setLoading("Este juego aún no está disponible.");
+      return;
+    }
+
+    const game = await factory();
+    const tracker = new HandTracker({
+      video,
+      overlay,
+      onStatus: (msg, hide) => setLoading(msg, hide),
+    });
+    const runtime = new GameRuntime({ game, canvas, tracker });
+
+    // Arrancamos el loop primero: el juego es jugable con mouse/teclado
+    // aunque la cámara/MediaPipe tarden o fallen.
+    runtime.start();
+
+    setLoading("Solicitando camara...");
+    const res = await tracker.start();
+    if (!res.camera) {
+      video.style.display = "none";
+      if (camLabel) camLabel.textContent = "Sin cámara";
+    }
+  }
+
+  boot();
+</script>
+
+<style is:global>
+  @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+  #game-wrapper * { margin: 0; padding: 0; box-sizing: border-box; }
+  #game-wrapper {
+    width: 100vw; min-height: calc(100vh - 56px);
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
+    gap: 16px; padding: 12px; background: #202124;
+  }
+  #leaderboard-side { flex-shrink: 0; order: 1; }
+  #game-container { position: relative; order: 2; }
+  #right-col {
+    order: 3; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 16px;
+    width: 360px;
+  }
+  #gameCanvas { display: block; border-radius: 4px; }
+  #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #aaa; font: 16px 'Press Start 2P', monospace; text-align: center; line-height: 1.5; }
+
+  #cam-box {
+    position: relative; width: 100%; aspect-ratio: 4 / 3;
+    background: #15171a; border: 1px solid #3d5c72; border-radius: 6px;
+    overflow: hidden;
+  }
+  #camVideo, #camOverlay {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform: scaleX(-1); /* efecto espejo */
+  }
+  #cam-label {
+    position: absolute; top: 6px; left: 8px; z-index: 2;
+    font: 10px 'Press Start 2P', monospace; color: #c7d5e0;
+    background: rgba(0,0,0,0.45); padding: 3px 6px; border-radius: 4px;
+  }
+
+  #img-box {
+    width: 100%; aspect-ratio: 4 / 3;
+    background: #15171a; border: 1px dashed #3d5c72; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #img-box img { width: 100%; height: 100%; object-fit: cover; }
+  .img-placeholder { color: #66737a; font: 12px 'Press Start 2P', monospace; text-align: center; padding: 1rem; }
+
+  @media (max-width: 1100px) {
+    #right-col { width: 100%; max-width: 480px; flex-direction: row; }
+    #cam-box, #img-box { flex: 1; }
+  }
+</style>

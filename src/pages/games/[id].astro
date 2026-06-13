@@ -69,15 +69,15 @@ const game = games.find((g) => g.id === id);
               )}
             </div>
 
-            {id === "block-breaker" && (
-              <a href="/jugar/block-breaker" class="play-button">Jugar ahora</a>
+            {game.playable && (
+              <a href={`/jugar/${game.id}`} class="play-button">Jugar ahora</a>
             )}
           </div>
         </div>
 
-        {id === "block-breaker" && (
+        {game.playable && (
           <div class="ranking-section">
-            <Leaderboard gameId="block-breaker" interactive={false} title="🏆 Ranking — Top 10" />
+            <Leaderboard gameId={game.id} interactive={false} title="🏆 Ranking — Top 10" />
           </div>
         )}
       </div>
