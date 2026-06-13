@@ -41,6 +41,12 @@ export interface HandTrackerOptions {
   onStatus?: (message: string, hideAfterMs?: number) => void;
   /** Parámetros del filtro One Euro (suavizado adaptativo de la mano). */
   filter?: OneEuroOptions;
+  /**
+   * Predicción de latencia (ms). Proyecta la posición hacia adelante usando
+   * la velocidad de la mano para compensar el retraso del pipeline de cámara
+   * (captura + inferencia). 0 = sin predicción. ~80-120ms suele ir bien.
+   */
+  predictMs?: number;
 }
 
 export interface HandTrackerStartResult {
@@ -72,6 +78,13 @@ export class HandTracker {
   private readonly filterX: OneEuroFilter;
   private readonly filterY: OneEuroFilter;
 
+  // Predicción de latencia: proyecta la posición con la velocidad estimada
+  // para compensar el retraso del pipeline (captura + inferencia).
+  private readonly predictMs: number;
+  private predPrevX: number | null = null;
+  private predPrevY: number | null = null;
+  private predPrevT: number | null = null;
+
   // Inferencia en worker (preferida).
   private worker: Worker | null = null;
   private workerBusy = false;
@@ -87,6 +100,7 @@ export class HandTracker {
     this.onStatus = opts.onStatus;
     this.filterX = new OneEuroFilter(opts.filter);
     this.filterY = new OneEuroFilter(opts.filter);
+    this.predictMs = opts.predictMs ?? 0;
   }
 
   /** Arranca cámara + worker (o fallback) + bucle de detección. */
@@ -334,8 +348,34 @@ export class HandTracker {
     this.latest.present = true;
     // Espejo en X porque el panel de cámara está reflejado (scaleX(-1)),
     // y suavizado adaptativo para eliminar el jitter de los landmarks.
-    this.latest.x = this.filterX.filter(1 - knuckle.x, tSeconds);
-    this.latest.y = this.filterY.filter(knuckle.y, tSeconds);
+    // Posición filtrada (anti-jitter). Es la base para estimar velocidad.
+    const filtX = this.filterX.filter(1 - knuckle.x, tSeconds);
+    const filtY = this.filterY.filter(knuckle.y, tSeconds);
+    let outX = filtX;
+    let outY = filtY;
+
+    // Predicción de latencia: extrapola con la velocidad (sobre la señal ya
+    // filtrada) para adelantar el retraso del pipeline. Cap por eje para que
+    // un salto brusco no dispare la proyección.
+    if (this.predictMs > 0 && this.predPrevT !== null) {
+      const dt = tSeconds - this.predPrevT;
+      if (dt > 0 && dt < 0.2) {
+        const vx = (filtX - (this.predPrevX as number)) / dt;
+        const vy = (filtY - (this.predPrevY as number)) / dt;
+        const ahead = this.predictMs / 1000;
+        const px = Math.max(-0.15, Math.min(0.15, vx * ahead));
+        const py = Math.max(-0.15, Math.min(0.15, vy * ahead));
+        outX = Math.max(0, Math.min(1, filtX + px));
+        outY = Math.max(0, Math.min(1, filtY + py));
+      }
+    }
+    // Guardar la posición filtrada (no la proyectada) para la próxima velocidad.
+    this.predPrevX = filtX;
+    this.predPrevY = filtY;
+    this.predPrevT = tSeconds;
+
+    this.latest.x = outX;
+    this.latest.y = outY;
     // Puño cerrado: las 4 puntas por debajo de sus nudillos.
     this.latest.fist =
       lm[8].y > lm[5].y &&
@@ -352,6 +392,9 @@ export class HandTracker {
     this.latest.landmarks = null;
     this.filterX.reset();
     this.filterY.reset();
+    this.predPrevX = null;
+    this.predPrevY = null;
+    this.predPrevT = null;
   }
 
   /**

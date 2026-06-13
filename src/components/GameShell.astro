@@ -72,6 +72,8 @@ const { gameId } = Astro.props;
       video,
       overlay,
       onStatus: (msg, hide) => setLoading(msg, hide),
+      // Predicción de latencia: adelanta el retraso del pipeline de cámara.
+      predictMs: 90,
     });
     const runtime = new GameRuntime({ game, canvas, tracker });
 
