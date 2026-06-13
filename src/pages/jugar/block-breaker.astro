@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import Navbar from "../../components/Navbar.astro";
+import Leaderboard from "../../components/Leaderboard.astro";
 ---
 
 <Layout title="Block Breaker - JUEGOS">
@@ -11,15 +12,22 @@ import Navbar from "../../components/Navbar.astro";
       <video id="camVideo" autoplay playsinline muted></video>
       <div id="loading">Iniciando...</div>
     </div>
+    <aside id="leaderboard-side">
+      <Leaderboard gameId="block-breaker" interactive={true} />
+    </aside>
   </div>
 </Layout>
 
 <style is:global>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #202124; overflow: hidden; }
-  #game-wrapper { width: 100vw; height: calc(100vh - 56px); display: flex; align-items: center; justify-content: center; background: #202124; }
+  body { background: #202124; }
+  #game-wrapper { width: 100vw; min-height: calc(100vh - 56px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; padding: 8px; background: #202124; }
   #game-container { position: relative; }
+  #leaderboard-side { flex-shrink: 0; }
+  @media (max-width: 1100px) {
+    #game-wrapper { align-items: flex-start; }
+  }
   #gameCanvas { display: block; border-radius: 4px; }
   #camVideo { position: absolute; left: -9999px; top: -9999px; width: 320px; height: 240px; visibility: hidden; }
   #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #aaa; font: 16px 'Press Start 2P', monospace; text-align: center; line-height: 1.5; }
@@ -164,7 +172,9 @@ import Navbar from "../../components/Navbar.astro";
 
   let scale=1, dpr=1;
   function resizeCanvas() {
-    const maxW = window.innerWidth - 20;
+    // En pantallas anchas la tabla de líderes va al lado: reservamos su ancho.
+    const sidePanel = window.innerWidth > 1100 ? 312 : 0;
+    const maxW = window.innerWidth - 20 - sidePanel;
     const maxH = window.innerHeight - 76;
     scale = Math.min(maxW / TOTAL_W, maxH / TOTAL_H, 1.5);
     dpr = window.devicePixelRatio || 1;
@@ -439,7 +449,8 @@ import Navbar from "../../components/Navbar.astro";
     perfect=true;
     state=S.START;
   }
-  function resetGame(){lives=MAX_LIVES;score=0;level=1;resetLevel(level);}
+  function notifyGameEnd(){window.dispatchEvent(new CustomEvent('bb:gameover',{detail:{gameId:'block-breaker',score}}));}
+  function resetGame(){lives=MAX_LIVES;score=0;level=1;resetLevel(level);window.dispatchEvent(new CustomEvent('bb:restart',{detail:{gameId:'block-breaker'}}));}
 
   function applyPU(type,paddle,balls,level,lives){
     switch(type){
@@ -641,7 +652,7 @@ import Navbar from "../../components/Navbar.astro";
       if(balls.length===0){
         lives--;perfect=false;
         for(let i=0;i<10;i++)particles.push(new Particle(paddle.x+paddle.w/2,PAD_Y,G_BLUE));
-        if(lives<=0)state=S.OVER;
+        if(lives<=0){state=S.OVER;notifyGameEnd();}
         else{const nb=new Ball(paddle.x+paddle.w/2,PAD_Y-BALL_R-1);nb.speed=BALL_BASE_SPD+(level-1)*0.5;balls=[nb];combo=0;state=S.START;}
       }
       for(let i=powerups.length-1;i>=0;i--){
@@ -667,7 +678,7 @@ import Navbar from "../../components/Navbar.astro";
       }
     }
     if(state===S.START){for(let b of balls)b.attachTo(paddle);}
-    if(state===S.CLEAR){clearTimer--;if(clearTimer<=0){level++;if(level>LEVELS.length)state=S.WIN;else resetLevel(level);}}
+    if(state===S.CLEAR){clearTimer--;if(clearTimer<=0){level++;if(level>LEVELS.length){state=S.WIN;notifyGameEnd();}else resetLevel(level);}}
     if(perfectShow>0)perfectShow--;
     for(let p of particles)p.update();
     particles=particles.filter(p=>p.life>0);

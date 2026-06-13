@@ -1,0 +1,36 @@
+# Environment Variables (Variables de entorno)
+.env
+.env.*
+*.env
+
+# Firebase & Google Cloud Credentials (Credenciales de configuración)
+firebase.json
+.firebaserc
+*serviceAccount*.json
+*firebase*.json
+*-credentials.json
+
+# Keys and Certificates (Claves y certificados)
+*.pem
+*.key
+*.cert
+*.p12
+*.rsa
+id_rsa*
+
+# Local Databases (Bases de datos locales)
+*.sqlite
+*.db
+*.sql
+
+# Version Control History (Historial de control de versiones)
+# Evita que la IA lea commits (confirmaciones de cambios) antiguos 
+# donde podrías haber subido una clave por error.
+.git/
+
+# Dependency Folders (Carpetas de dependencias)
+# No es estrictamente de seguridad, pero evita que la IA 
+# lea miles de archivos innecesarios y consuma tu cuota.
+node_modules/
+.astro/
+dist/

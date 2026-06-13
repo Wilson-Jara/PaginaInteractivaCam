@@ -1,0 +1,467 @@
+---
+// ============================================================
+//  TABLA DE LIDERES (Leaderboard) — Top 10
+// ============================================================
+//  Muestra el Top 10 de un juego en TIEMPO REAL desde Firestore.
+//  - Todos pueden VER la tabla.
+//  - Solo el ADMIN logueado puede GUARDAR un nombre cuando se
+//    logra un récord del Top 10 (la seguridad real la imponen
+//    las reglas de Firestore, no este componente).
+//
+//  Props:
+//   - gameId: id del juego (coincide con games.ts). Default "block-breaker".
+//   - interactive: si es false, solo muestra la tabla (sin login
+//     ni guardado). Útil en la página de detalle del juego.
+//   - title: encabezado del panel.
+// ============================================================
+interface Props {
+  gameId?: string;
+  interactive?: boolean;
+  title?: string;
+}
+const {
+  gameId = "block-breaker",
+  interactive = true,
+  title = "🏆 Top 10",
+} = Astro.props;
+---
+
+<section
+  class="leaderboard"
+  data-leaderboard
+  data-game-id={gameId}
+  data-interactive={interactive ? "1" : "0"}
+>
+  <h3 class="lb-title">{title}</h3>
+
+  <ol class="lb-list" data-lb-list>
+    <li class="lb-loading">Cargando…</li>
+  </ol>
+
+  {interactive && (
+    <div class="lb-bottom">
+      {/* Aviso de récord (visible al terminar la partida) */}
+      <div class="lb-record" data-lb-record hidden>
+        <p class="lb-record-text" data-lb-record-text></p>
+
+        {/* Formulario de guardado: SOLO visible para el admin logueado */}
+        <form class="lb-save" data-lb-save hidden>
+          <input
+            class="lb-input"
+            data-lb-name
+            type="text"
+            maxlength="20"
+            placeholder="Nombre del jugador"
+            autocomplete="off"
+            required
+          />
+          <button class="lb-btn" type="submit">Guardar récord</button>
+        </form>
+      </div>
+
+      {/* Zona de administrador */}
+      <div class="lb-admin">
+        <button class="lb-link" data-lb-admin-toggle type="button">🔒 Admin</button>
+
+        <form class="lb-login" data-lb-login hidden>
+          <input
+            class="lb-input"
+            data-lb-email
+            type="email"
+            placeholder="Correo admin"
+            autocomplete="username"
+            required
+          />
+          <input
+            class="lb-input"
+            data-lb-pass
+            type="password"
+            placeholder="Contraseña"
+            autocomplete="current-password"
+            required
+          />
+          <button class="lb-btn" type="submit">Entrar</button>
+        </form>
+
+        <div class="lb-session" data-lb-session hidden>
+          <span class="lb-session-email" data-lb-session-email></span>
+          <button class="lb-link" data-lb-logout type="button">Salir</button>
+        </div>
+
+        <p class="lb-msg" data-lb-msg hidden></p>
+      </div>
+    </div>
+  )}
+</section>
+
+<script>
+  import { db, auth, isFirebaseConfigured } from "../lib/firebase";
+  import {
+    collection,
+    query,
+    orderBy,
+    limit,
+    onSnapshot,
+    addDoc,
+    serverTimestamp,
+  } from "firebase/firestore";
+  import {
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+  } from "firebase/auth";
+
+  type ScoreRow = { name: string; score: number };
+
+  function initPanel(root: HTMLElement) {
+    const gameId = root.dataset.gameId || "block-breaker";
+    const interactive = root.dataset.interactive === "1";
+
+    const listEl = root.querySelector<HTMLElement>("[data-lb-list]")!;
+
+    // --- Render de la tabla ---
+    let scores: ScoreRow[] = [];
+    function renderList() {
+      if (scores.length === 0) {
+        listEl.innerHTML = `<li class="lb-empty">Sin récords todavía</li>`;
+        return;
+      }
+      listEl.innerHTML = scores
+        .map((s, i) => {
+          const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+          const name = escapeHtml(s.name);
+          const pts = String(s.score).padStart(5, "0");
+          return `<li class="lb-row"><span class="lb-rank">${medal}</span><span class="lb-name">${name}</span><span class="lb-score">${pts}</span></li>`;
+        })
+        .join("");
+    }
+
+    // Si Firebase aún no está configurado, no intentamos conectar.
+    if (!isFirebaseConfigured) {
+      listEl.innerHTML = `<li class="lb-empty">Configura Firebase para ver la tabla</li>`;
+      return;
+    }
+
+    const scoresRef = collection(db, "games", gameId, "scores");
+    const topQuery = query(scoresRef, orderBy("score", "desc"), limit(10));
+
+    onSnapshot(
+      topQuery,
+      (snap) => {
+        scores = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return { name: String(data.name ?? "—"), score: Number(data.score ?? 0) };
+        });
+        renderList();
+      },
+      (err) => {
+        console.warn("Leaderboard onSnapshot:", err);
+        listEl.innerHTML = `<li class="lb-empty">No se pudo cargar la tabla</li>`;
+      }
+    );
+
+    if (!interactive) return;
+
+    // ---------- Modo interactivo (juego): login admin + guardar ----------
+    const recordBox = root.querySelector<HTMLElement>("[data-lb-record]")!;
+    const recordText = root.querySelector<HTMLElement>("[data-lb-record-text]")!;
+    const saveForm = root.querySelector<HTMLFormElement>("[data-lb-save]")!;
+    const nameInput = root.querySelector<HTMLInputElement>("[data-lb-name]")!;
+
+    const adminToggle = root.querySelector<HTMLButtonElement>("[data-lb-admin-toggle]")!;
+    const loginForm = root.querySelector<HTMLFormElement>("[data-lb-login]")!;
+    const emailInput = root.querySelector<HTMLInputElement>("[data-lb-email]")!;
+    const passInput = root.querySelector<HTMLInputElement>("[data-lb-pass]")!;
+    const sessionBox = root.querySelector<HTMLElement>("[data-lb-session]")!;
+    const sessionEmail = root.querySelector<HTMLElement>("[data-lb-session-email]")!;
+    const logoutBtn = root.querySelector<HTMLButtonElement>("[data-lb-logout]")!;
+    const msgEl = root.querySelector<HTMLElement>("[data-lb-msg]")!;
+
+    let isAdmin = false;
+    let pendingScore: number | null = null;
+
+    function showMsg(text: string) {
+      msgEl.textContent = text;
+      msgEl.hidden = !text;
+    }
+
+    function qualifies(score: number) {
+      if (score <= 0) return false;
+      if (scores.length < 10) return true;
+      return score > scores[scores.length - 1].score;
+    }
+
+    function refreshRecordUI() {
+      if (pendingScore !== null && qualifies(pendingScore)) {
+        recordBox.hidden = false;
+        if (isAdmin) {
+          recordText.textContent = `¡Top 10 con ${pendingScore} puntos! Escribe el nombre:`;
+          saveForm.hidden = false;
+        } else {
+          recordText.textContent = `¡Top 10 con ${pendingScore} puntos! Pide al admin que lo guarde.`;
+          saveForm.hidden = true;
+        }
+      } else {
+        recordBox.hidden = true;
+        saveForm.hidden = true;
+      }
+    }
+
+    // --- Eventos del juego ---
+    window.addEventListener("bb:gameover", (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.gameId && detail.gameId !== gameId) return;
+      pendingScore = Number(detail.score ?? 0);
+      refreshRecordUI();
+    });
+    window.addEventListener("bb:restart", () => {
+      pendingScore = null;
+      refreshRecordUI();
+    });
+
+    // --- Login admin ---
+    adminToggle.addEventListener("click", () => {
+      if (isAdmin) return;
+      loginForm.hidden = !loginForm.hidden;
+      showMsg("");
+    });
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showMsg("Entrando…");
+      try {
+        await signInWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
+        passInput.value = "";
+        showMsg("");
+      } catch (err: any) {
+        showMsg("No se pudo entrar. Revisa correo/contraseña.");
+        console.warn("login:", err?.code || err);
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => signOut(auth).catch(() => {}));
+
+    onAuthStateChanged(auth, (user) => {
+      isAdmin = !!user;
+      if (user) {
+        loginForm.hidden = true;
+        sessionBox.hidden = false;
+        sessionEmail.textContent = user.email || "admin";
+        adminToggle.hidden = true;
+      } else {
+        sessionBox.hidden = true;
+        adminToggle.hidden = false;
+      }
+      showMsg("");
+      refreshRecordUI();
+    });
+
+    // --- Guardar récord ---
+    saveForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!isAdmin || pendingScore === null) return;
+      const name = nameInput.value.trim().slice(0, 20);
+      if (!name) return;
+      showMsg("Guardando…");
+      try {
+        await addDoc(collection(db, "games", gameId, "scores"), {
+          name,
+          score: Math.round(pendingScore),
+          createdAt: serverTimestamp(),
+        });
+        nameInput.value = "";
+        pendingScore = null;
+        refreshRecordUI();
+        showMsg("¡Récord guardado!");
+        setTimeout(() => showMsg(""), 2500);
+      } catch (err: any) {
+        showMsg("No se pudo guardar (¿permisos de admin?).");
+        console.warn("save score:", err?.code || err);
+      }
+    });
+  }
+
+  function escapeHtml(s: string) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-leaderboard]")
+    .forEach((el) => initPanel(el));
+</script>
+
+<style>
+  .leaderboard {
+    width: 280px;
+    max-width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    color: var(--text-primary);
+    font-family: "Inter", sans-serif;
+  }
+
+  .lb-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    color: var(--text-primary);
+  }
+
+  .lb-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .lb-row {
+    display: grid;
+    grid-template-columns: 2rem 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: var(--bg-primary);
+  }
+
+  .lb-row:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .lb-rank {
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .lb-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .lb-score {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .lb-loading,
+  .lb-empty {
+    list-style: none;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    padding: 1rem 0;
+  }
+
+  .lb-bottom {
+    margin-top: 0.85rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .lb-record {
+    background: rgba(102, 192, 244, 0.1);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 0.6rem;
+  }
+
+  .lb-record-text {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+  }
+
+  .lb-save,
+  .lb-login {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .lb-input {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.82rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+  }
+
+  .lb-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .lb-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .lb-btn:hover {
+    background: var(--accent-hover);
+  }
+
+  .lb-admin {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .lb-link {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+    align-self: flex-start;
+    font-family: inherit;
+  }
+
+  .lb-link:hover {
+    color: var(--accent);
+  }
+
+  .lb-session {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .lb-session-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lb-msg {
+    font-size: 0.75rem;
+    color: var(--accent-orange);
+  }
+</style>

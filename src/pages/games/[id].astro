@@ -2,6 +2,7 @@
 import Layout from "../../layouts/Layout.astro";
 import Navbar from "../../components/Navbar.astro";
 import Footer from "../../components/Footer.astro";
+import Leaderboard from "../../components/Leaderboard.astro";
 import { games } from "../../data/games";
 
 export function getStaticPaths() {
@@ -73,6 +74,12 @@ const game = games.find((g) => g.id === id);
             )}
           </div>
         </div>
+
+        {id === "block-breaker" && (
+          <div class="ranking-section">
+            <Leaderboard gameId="block-breaker" interactive={false} title="🏆 Ranking — Top 10" />
+          </div>
+        )}
       </div>
     ) : (
       <div class="content-container">
@@ -203,6 +210,12 @@ const game = games.find((g) => g.id === id);
     background: #29b6f6;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(79, 195, 247, 0.3);
+  }
+
+  .ranking-section {
+    margin-top: 2.5rem;
+    display: flex;
+    justify-content: center;
   }
 
   .not-found-title {

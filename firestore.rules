@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// ============================================================
+//  REGLAS DE SEGURIDAD DE FIRESTORE
+// ============================================================
+//  Modelo de datos:
+//    games/{gameId}/scores/{scoreId}  ->  { name, score, createdAt }
+//
+//  Reglas:
+//   - CUALQUIERA puede LEER la tabla (read).
+//   - Solo el ADMIN (correo concreto, logueado) puede ESCRIBIR.
+//   - Se valida la forma del dato (nombre 1..20 chars, score entero >= 0).
+//
+//  ⚠️ PASO MANUAL: reemplaza ADMIN_EMAIL_AQUI por el correo exacto
+//  de la cuenta admin que crearás en Firebase Authentication.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "wilsonjara101@gmail.com";
+    }
+
+    function validScore() {
+      let d = request.resource.data;
+      return d.name is string
+        && d.name.size() >= 1
+        && d.name.size() <= 20
+        && d.score is int
+        && d.score >= 0
+        && d.score <= 100000000;
+    }
+
+    match /games/{gameId}/scores/{scoreId} {
+      allow read: if true;
+      allow create: if isAdmin() && validScore();
+      allow update, delete: if isAdmin();
+    }
+  }
+}
