@@ -1,17 +1,25 @@
 // ============================================================
-//  HAND TRACKER — cámara + MediaPipe + gesto de puño + esqueleto
+//  HAND TRACKER — cámara + MediaPipe (en Web Worker) + esqueleto
 // ============================================================
-//  Encapsula TODA la complejidad de visión por computadora para
-//  que los juegos no la repitan: inicializa la webcam, carga
-//  MediaPipe Tasks Vision (con fallback GPU -> CPU), corre el bucle
-//  de detección y expone una `HandInput` normalizada y espejada.
+//  Orquesta la visión por computadora para que los juegos no la
+//  repitan. La INFERENCIA corre en un Web Worker (handWorker.ts),
+//  así nunca compite con el render del juego en el hilo principal:
 //
-//  - `latest` siempre tiene el último estado de la mano.
-//  - Dibuja el esqueleto sobre un <canvas> opcional (panel de cámara).
+//   1. Inicializa la webcam (hilo principal, para mostrarla).
+//   2. Arranca el worker y le pasa frames con createImageBitmap
+//      (transferencia zero-copy). Backpressure: 1 frame en vuelo.
+//   3. Al recibir landmarks: aplica One Euro (anti-jitter), calcula
+//      el puño y dibuja el esqueleto (operaciones baratas).
+//
+//  Si el worker no está disponible, cae a inferencia en el hilo
+//  principal (compatibilidad).
 // ============================================================
 import type { HandInput, Landmark } from "./types";
+import { OneEuroFilter, type OneEuroOptions } from "./OneEuroFilter";
 
 const MP_VERSION = "0.10.35";
+const BUNDLE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/vision_bundle.mjs`;
+const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
@@ -31,11 +39,15 @@ export interface HandTrackerOptions {
   overlay?: HTMLCanvasElement | null;
   /** Callback de estado para mostrar mensajes de carga al usuario. */
   onStatus?: (message: string, hideAfterMs?: number) => void;
+  /** Parámetros del filtro One Euro (suavizado adaptativo de la mano). */
+  filter?: OneEuroOptions;
 }
 
 export interface HandTrackerStartResult {
   camera: boolean;
   mediapipe: boolean;
+  /** true si la inferencia corre en un Web Worker (fuera del hilo principal). */
+  worker: boolean;
 }
 
 const DEFAULT_HAND: HandInput = {
@@ -55,8 +67,17 @@ export class HandTracker {
   private readonly overlayCtx: CanvasRenderingContext2D | null;
   private readonly onStatus?: (message: string, hideAfterMs?: number) => void;
 
-  // `any` a propósito: MediaPipe se carga por CDN y no trae tipos aquí.
+  // Filtros One Euro: suavizado adaptativo por eje (mata el jitter en
+  // reposo sin añadir lag al mover la mano rápido).
+  private readonly filterX: OneEuroFilter;
+  private readonly filterY: OneEuroFilter;
+
+  // Inferencia en worker (preferida).
+  private worker: Worker | null = null;
+  private workerBusy = false;
+  // Inferencia en hilo principal (fallback). `any`: MediaPipe via CDN.
   private detector: any = null;
+
   private running = false;
 
   constructor(opts: HandTrackerOptions) {
@@ -64,23 +85,34 @@ export class HandTracker {
     this.overlay = opts.overlay ?? null;
     this.overlayCtx = this.overlay ? this.overlay.getContext("2d") : null;
     this.onStatus = opts.onStatus;
+    this.filterX = new OneEuroFilter(opts.filter);
+    this.filterY = new OneEuroFilter(opts.filter);
   }
 
-  /** Arranca cámara + MediaPipe + bucle de detección. */
+  /** Arranca cámara + worker (o fallback) + bucle de detección. */
   async start(): Promise<HandTrackerStartResult> {
     this.status("Solicitando camara...");
     const camera = await this.initCamera();
-    let mediapipe = false;
-    if (camera) {
-      mediapipe = await this.initMediaPipe();
-      if (mediapipe) this.runDetectionLoop();
+    if (!camera) return { camera: false, mediapipe: false, worker: false };
+
+    // 1) Intentar Web Worker (inferencia fuera del hilo principal).
+    const workerOk = await this.initWorker();
+    if (workerOk) {
+      this.runWorkerLoop();
+      return { camera: true, mediapipe: true, worker: true };
     }
-    return { camera, mediapipe };
+
+    // 2) Fallback: inferencia en el hilo principal.
+    const mp = await this.initMainThread();
+    if (mp) this.runMainLoop();
+    return { camera: true, mediapipe: mp, worker: false };
   }
 
-  /** Detiene el bucle y libera la cámara. */
+  /** Detiene el bucle, termina el worker y libera la cámara. */
   stop(): void {
     this.running = false;
+    this.worker?.terminate();
+    this.worker = null;
     const stream = this.video.srcObject as MediaStream | null;
     stream?.getTracks().forEach((t) => t.stop());
     this.video.srcObject = null;
@@ -113,34 +145,138 @@ export class HandTracker {
     }
   }
 
-  private async initMediaPipe(): Promise<boolean> {
+  // ---------- Inferencia en Web Worker (preferida) ----------
+
+  private initWorker(): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        this.status("Cargando deteccion de manos...");
+        const worker = new Worker(new URL("./handWorker.ts", import.meta.url), {
+          type: "module",
+        });
+        let settled = false;
+        const timeout = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            worker.terminate();
+            console.warn("[HandTracker] Worker: timeout al inicializar.");
+            resolve(false);
+          }
+        }, 20000);
+
+        worker.onmessage = (e: MessageEvent) => {
+          const msg = e.data;
+          if (msg.type === "ready") {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timeout);
+              this.worker = worker;
+              console.info(`[HandTracker] Worker listo. Delegado: ${msg.delegate}`);
+              this.status("Manos detectadas! Mueve tu mano.", 1500);
+              resolve(true);
+            }
+          } else if (msg.type === "error") {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timeout);
+              worker.terminate();
+              console.warn("[HandTracker] Worker fallo al iniciar:", msg.message);
+              resolve(false);
+            }
+          } else if (msg.type === "result") {
+            this.onWorkerResult(msg.landmarks, msg.timestamp);
+          }
+        };
+
+        worker.onerror = (err) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            worker.terminate();
+            console.warn("[HandTracker] Worker error:", err.message);
+            resolve(false);
+          }
+        };
+
+        worker.postMessage({
+          type: "init",
+          bundleUrl: BUNDLE_URL,
+          wasmUrl: WASM_URL,
+          modelUrl: MODEL_URL,
+        });
+      } catch (e) {
+        console.warn("[HandTracker] No se pudo crear el worker:", e);
+        resolve(false);
+      }
+    });
+  }
+
+  private runWorkerLoop(): void {
+    this.running = true;
+    const run = () => {
+      if (!this.running) return;
+      this.sendFrameToWorker();
+      this.scheduleNext(run);
+    };
+    run();
+  }
+
+  /** Captura un frame y lo transfiere al worker (1 en vuelo: backpressure). */
+  private sendFrameToWorker(): void {
+    if (!this.worker || this.workerBusy) return;
+    if (this.video.readyState < 2) return;
+    this.workerBusy = true;
+    const ts = performance.now();
+    createImageBitmap(this.video)
+      .then((bmp) => {
+        if (!this.worker || !this.running) {
+          bmp.close();
+          this.workerBusy = false;
+          return;
+        }
+        this.worker.postMessage({ type: "frame", bitmap: bmp, timestamp: ts }, [bmp]);
+      })
+      .catch((e) => {
+        console.warn("[HandTracker] createImageBitmap:", e);
+        this.workerBusy = false;
+      });
+  }
+
+  private onWorkerResult(landmarks: Landmark[] | null, timestamp: number): void {
+    this.workerBusy = false;
+    if (landmarks && landmarks.length > 0) {
+      this.applyHand(landmarks, timestamp / 1000);
+      this.drawOverlay(landmarks);
+    } else {
+      this.clearHand();
+      this.drawOverlay(null);
+    }
+  }
+
+  // ---------- Inferencia en hilo principal (fallback) ----------
+
+  private async initMainThread(): Promise<boolean> {
     try {
       this.status("Cargando deteccion de manos...");
-      // URLs por CDN: dejamos que el navegador las cargue en runtime.
-      const bundleUrl = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/vision_bundle.mjs`;
-      const wasmUrl = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
       const { HandLandmarker, FilesetResolver } = await import(
-        /* @vite-ignore */ bundleUrl
+        /* @vite-ignore */ BUNDLE_URL
       );
-      const vision = await FilesetResolver.forVisionTasks(wasmUrl);
+      const vision = await FilesetResolver.forVisionTasks(WASM_URL);
       const makeOptions = (delegate: "GPU" | "CPU") => ({
         baseOptions: { modelAssetPath: MODEL_URL, delegate },
         runningMode: "VIDEO" as const,
         numHands: 1,
-        minHandDetectionConfidence: 0.4,
-        minTrackingConfidence: 0.4,
+        minHandDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
       });
       try {
-        this.detector = await HandLandmarker.createFromOptions(
-          vision,
-          makeOptions("GPU")
-        );
+        this.detector = await HandLandmarker.createFromOptions(vision, makeOptions("GPU"));
+        console.info("[HandTracker] Hilo principal. Delegado: GPU");
       } catch (gpuErr) {
         console.warn("MediaPipe GPU no disponible, usando CPU:", gpuErr);
-        this.detector = await HandLandmarker.createFromOptions(
-          vision,
-          makeOptions("CPU")
-        );
+        this.detector = await HandLandmarker.createFromOptions(vision, makeOptions("CPU"));
+        console.info("[HandTracker] Hilo principal. Delegado: CPU");
       }
       this.status("Manos detectadas! Mueve tu mano.", 1500);
       return true;
@@ -151,35 +287,26 @@ export class HandTracker {
     }
   }
 
-  private runDetectionLoop(): void {
+  private runMainLoop(): void {
     this.running = true;
     const run = () => {
       if (!this.running) return;
-      this.detect();
-      const v = this.video as HTMLVideoElement & {
-        requestVideoFrameCallback?: (cb: () => void) => number;
-      };
-      if (typeof v.requestVideoFrameCallback === "function") {
-        v.requestVideoFrameCallback(run);
-      } else {
-        requestAnimationFrame(run);
-      }
+      this.detectMainThread();
+      this.scheduleNext(run);
     };
     run();
   }
 
-  private detect(): void {
+  private detectMainThread(): void {
     if (!this.detector || this.video.readyState < 2) return;
     try {
       const result = this.detector.detectForVideo(this.video, performance.now());
       const hands: Landmark[][] = result?.landmarks ?? [];
       if (hands.length > 0) {
-        this.applyHand(hands[0]);
+        this.applyHand(hands[0], performance.now() / 1000);
         this.drawOverlay(hands[0]);
       } else {
-        this.latest.present = false;
-        this.latest.fist = false;
-        this.latest.landmarks = null;
+        this.clearHand();
         this.drawOverlay(null);
       }
     } catch (e) {
@@ -187,13 +314,28 @@ export class HandTracker {
     }
   }
 
-  /** Convierte landmarks crudos en HandInput normalizado + espejado. */
-  private applyHand(lm: Landmark[]): void {
+  // ---------- Común ----------
+
+  /** Programa el siguiente tick por frame de vídeo (o RAF como respaldo). */
+  private scheduleNext(run: () => void): void {
+    const v = this.video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: () => void) => number;
+    };
+    if (typeof v.requestVideoFrameCallback === "function") {
+      v.requestVideoFrameCallback(run);
+    } else {
+      requestAnimationFrame(run);
+    }
+  }
+
+  /** Convierte landmarks crudos en HandInput normalizado, espejado y suavizado. */
+  private applyHand(lm: Landmark[], tSeconds: number): void {
     const knuckle = lm[9]; // nudillo central: más estable que la punta del dedo
     this.latest.present = true;
-    // Espejo en X porque el panel de cámara está reflejado (scaleX(-1)).
-    this.latest.x = 1 - knuckle.x;
-    this.latest.y = knuckle.y;
+    // Espejo en X porque el panel de cámara está reflejado (scaleX(-1)),
+    // y suavizado adaptativo para eliminar el jitter de los landmarks.
+    this.latest.x = this.filterX.filter(1 - knuckle.x, tSeconds);
+    this.latest.y = this.filterY.filter(knuckle.y, tSeconds);
     // Puño cerrado: las 4 puntas por debajo de sus nudillos.
     this.latest.fist =
       lm[8].y > lm[5].y &&
@@ -201,6 +343,15 @@ export class HandTracker {
       lm[16].y > lm[13].y &&
       lm[20].y > lm[17].y;
     this.latest.landmarks = lm;
+  }
+
+  /** Marca "sin mano" y reinicia los filtros (evita saltos al reaparecer). */
+  private clearHand(): void {
+    this.latest.present = false;
+    this.latest.fist = false;
+    this.latest.landmarks = null;
+    this.filterX.reset();
+    this.filterY.reset();
   }
 
   /**

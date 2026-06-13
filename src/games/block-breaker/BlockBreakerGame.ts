@@ -208,8 +208,9 @@ export class BlockBreakerGame extends AbstractCameraGame {
       this.smoothX = input.pointer.x; // el puntero no se suaviza (respuesta directa)
     }
 
-    // Interpolación para máxima suavidad y menor latencia.
-    this.smoothX += (this.handX - this.smoothX) * 0.4;
+    // Interpolación entre frames de detección (el suavizado anti-jitter ya
+    // lo hace el HandTracker con One Euro; aquí solo rellenamos huecos).
+    this.smoothX += (this.handX - this.smoothX) * 0.5;
 
     if (this.state === "playing" || this.state === "start") {
       this.paddle.update(this.smoothX, input.keys);
