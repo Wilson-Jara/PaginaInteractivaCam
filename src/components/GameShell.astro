@@ -98,11 +98,14 @@ const { gameId } = Astro.props;
 
 <style is:global>
   @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+  /* En la página de juego no queremos NINGÚN scroll: el lienzo ya se
+     escala para caber en la ventana. */
+  html, body { overflow: hidden; }
   #game-wrapper * { margin: 0; padding: 0; box-sizing: border-box; }
   #game-wrapper {
-    width: 100vw; min-height: calc(100vh - 56px);
+    width: 100%; height: calc(100vh - 56px);
     display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
-    gap: 16px; padding: 12px; background: #202124;
+    gap: 16px; padding: 12px; background: #202124; overflow: hidden;
   }
   #leaderboard-side { flex-shrink: 0; order: 1; }
   #game-container { position: relative; order: 2; }

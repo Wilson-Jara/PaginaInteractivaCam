@@ -420,10 +420,6 @@ export class BlockBreakerGame extends AbstractCameraGame {
         c.stroke();
       }
     }
-    c.fillStyle = "#ffffff";
-    c.font = "16px monospace";
-    c.textAlign = "right";
-    c.fillText("🔊", WIN_W - 20, HUD_H / 2);
   }
 
   private drawGameOver(c: CanvasRenderingContext2D): void {
