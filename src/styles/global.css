@@ -27,6 +27,17 @@
   box-sizing: border-box;
 }
 
+/* Controles solo para admin: ocultos por defecto, visibles cuando
+   AdminLogin marca <body class="is-admin">. Marca cualquier elemento
+   futuro con class="admin-only" para protegerlo tras el login. */
+.admin-only {
+  display: none !important;
+}
+
+body.is-admin .admin-only {
+  display: revert !important;
+}
+
 html {
   scroll-behavior: smooth;
 }

@@ -39,7 +39,7 @@ const {
   </ol>
 
   {interactive && (
-    <div class="lb-bottom">
+    <div class="lb-bottom" data-lb-bottom hidden>
       {/* Aviso de récord (visible al terminar la partida) */}
       <div class="lb-record" data-lb-record hidden>
         <p class="lb-record-text" data-lb-record-text></p>
@@ -57,36 +57,6 @@ const {
           />
           <button class="lb-btn" type="submit">Guardar récord</button>
         </form>
-      </div>
-
-      {/* Zona de administrador */}
-      <div class="lb-admin">
-        <button class="lb-link" data-lb-admin-toggle type="button">🔒 Admin</button>
-
-        <form class="lb-login" data-lb-login hidden>
-          <input
-            class="lb-input"
-            data-lb-email
-            type="email"
-            placeholder="Correo admin"
-            autocomplete="username"
-            required
-          />
-          <input
-            class="lb-input"
-            data-lb-pass
-            type="password"
-            placeholder="Contraseña"
-            autocomplete="current-password"
-            required
-          />
-          <button class="lb-btn" type="submit">Entrar</button>
-        </form>
-
-        <div class="lb-session" data-lb-session hidden>
-          <span class="lb-session-email" data-lb-session-email></span>
-          <button class="lb-link" data-lb-logout type="button">Salir</button>
-        </div>
 
         <p class="lb-msg" data-lb-msg hidden></p>
       </div>
@@ -105,11 +75,7 @@ const {
     addDoc,
     serverTimestamp,
   } from "firebase/firestore";
-  import {
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged,
-  } from "firebase/auth";
+  import { onAuthStateChanged } from "firebase/auth";
 
   type ScoreRow = { name: string; score: number };
 
@@ -162,19 +128,14 @@ const {
 
     if (!interactive) return;
 
-    // ---------- Modo interactivo (juego): login admin + guardar ----------
+    // ---------- Modo interactivo (juego): guardar récord ----------
+    // El login es global (componente AdminLogin en la barra). Aquí solo
+    // reaccionamos a la sesión y mostramos el formulario de guardado.
+    const bottomBox = root.querySelector<HTMLElement>("[data-lb-bottom]")!;
     const recordBox = root.querySelector<HTMLElement>("[data-lb-record]")!;
     const recordText = root.querySelector<HTMLElement>("[data-lb-record-text]")!;
     const saveForm = root.querySelector<HTMLFormElement>("[data-lb-save]")!;
     const nameInput = root.querySelector<HTMLInputElement>("[data-lb-name]")!;
-
-    const adminToggle = root.querySelector<HTMLButtonElement>("[data-lb-admin-toggle]")!;
-    const loginForm = root.querySelector<HTMLFormElement>("[data-lb-login]")!;
-    const emailInput = root.querySelector<HTMLInputElement>("[data-lb-email]")!;
-    const passInput = root.querySelector<HTMLInputElement>("[data-lb-pass]")!;
-    const sessionBox = root.querySelector<HTMLElement>("[data-lb-session]")!;
-    const sessionEmail = root.querySelector<HTMLElement>("[data-lb-session-email]")!;
-    const logoutBtn = root.querySelector<HTMLButtonElement>("[data-lb-logout]")!;
     const msgEl = root.querySelector<HTMLElement>("[data-lb-msg]")!;
 
     let isAdmin = false;
@@ -192,17 +153,18 @@ const {
     }
 
     function refreshRecordUI() {
-      if (pendingScore !== null && qualifies(pendingScore)) {
-        recordBox.hidden = false;
+      const show = pendingScore !== null && qualifies(pendingScore);
+      bottomBox.hidden = !show;
+      recordBox.hidden = !show;
+      if (show) {
         if (isAdmin) {
           recordText.textContent = `¡Top 10 con ${pendingScore} puntos! Escribe el nombre:`;
           saveForm.hidden = false;
         } else {
-          recordText.textContent = `¡Top 10 con ${pendingScore} puntos! Pide al admin que lo guarde.`;
+          recordText.textContent = `¡Top 10 con ${pendingScore} puntos! Inicia sesión como admin para guardarlo.`;
           saveForm.hidden = true;
         }
       } else {
-        recordBox.hidden = true;
         saveForm.hidden = true;
       }
     }
@@ -219,39 +181,9 @@ const {
       refreshRecordUI();
     });
 
-    // --- Login admin ---
-    adminToggle.addEventListener("click", () => {
-      if (isAdmin) return;
-      loginForm.hidden = !loginForm.hidden;
-      showMsg("");
-    });
-
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      showMsg("Entrando…");
-      try {
-        await signInWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
-        passInput.value = "";
-        showMsg("");
-      } catch (err: any) {
-        showMsg("No se pudo entrar. Revisa correo/contraseña.");
-        console.warn("login:", err?.code || err);
-      }
-    });
-
-    logoutBtn.addEventListener("click", () => signOut(auth).catch(() => {}));
-
+    // --- Sesión admin global ---
     onAuthStateChanged(auth, (user) => {
       isAdmin = !!user;
-      if (user) {
-        loginForm.hidden = true;
-        sessionBox.hidden = false;
-        sessionEmail.textContent = user.email || "admin";
-        adminToggle.hidden = true;
-      } else {
-        sessionBox.hidden = true;
-        adminToggle.hidden = false;
-      }
       showMsg("");
       refreshRecordUI();
     });
@@ -385,8 +317,7 @@ const {
     line-height: 1.4;
   }
 
-  .lb-save,
-  .lb-login {
+  .lb-save {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
@@ -422,42 +353,6 @@ const {
 
   .lb-btn:hover {
     background: var(--accent-hover);
-  }
-
-  .lb-admin {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .lb-link {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    cursor: pointer;
-    padding: 0;
-    align-self: flex-start;
-    font-family: inherit;
-  }
-
-  .lb-link:hover {
-    color: var(--accent);
-  }
-
-  .lb-session {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .lb-session-email {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .lb-msg {

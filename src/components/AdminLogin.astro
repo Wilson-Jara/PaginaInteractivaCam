@@ -1,0 +1,256 @@
+---
+// ============================================================
+//  BOTON DE LOGIN ADMIN (global, en la barra superior)
+// ============================================================
+//  Al iniciar sesion como admin:
+//   - Marca <body class="is-admin"> -> cualquier elemento con la
+//     clase "admin-only" se vuelve visible en TODA la pagina.
+//   - Emite el evento window "admin:change" con { isAdmin }.
+//  La seguridad real la imponen las reglas de Firestore; esto solo
+//  controla que se MUESTREN u oculten los controles de admin.
+// ============================================================
+---
+
+<div class="admin-auth" data-admin-auth>
+  <button class="aa-btn" data-aa-toggle type="button">
+    <span class="aa-icon">🔒</span>
+    <span class="aa-label" data-aa-label>Iniciar sesión</span>
+  </button>
+
+  <div class="aa-pop" data-aa-pop hidden>
+    <form class="aa-form" data-aa-login>
+      <input
+        class="aa-input"
+        data-aa-email
+        type="email"
+        placeholder="Correo admin"
+        autocomplete="username"
+        required
+      />
+      <input
+        class="aa-input"
+        data-aa-pass
+        type="password"
+        placeholder="Contraseña"
+        autocomplete="current-password"
+        required
+      />
+      <button class="aa-submit" type="submit">Entrar</button>
+    </form>
+
+    <div class="aa-session" data-aa-session hidden>
+      <span class="aa-session-email" data-aa-session-email></span>
+      <button class="aa-submit aa-logout" data-aa-logout type="button">Cerrar sesión</button>
+    </div>
+
+    <p class="aa-msg" data-aa-msg hidden></p>
+  </div>
+</div>
+
+<script>
+  import { auth, isFirebaseConfigured } from "../lib/firebase";
+  import {
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+  } from "firebase/auth";
+
+  const root = document.querySelector<HTMLElement>("[data-admin-auth]");
+  if (root) initAdminAuth(root);
+
+  function initAdminAuth(root: HTMLElement) {
+    const toggle = root.querySelector<HTMLButtonElement>("[data-aa-toggle]")!;
+    const label = root.querySelector<HTMLElement>("[data-aa-label]")!;
+    const pop = root.querySelector<HTMLElement>("[data-aa-pop]")!;
+    const loginForm = root.querySelector<HTMLFormElement>("[data-aa-login]")!;
+    const emailInput = root.querySelector<HTMLInputElement>("[data-aa-email]")!;
+    const passInput = root.querySelector<HTMLInputElement>("[data-aa-pass]")!;
+    const sessionBox = root.querySelector<HTMLElement>("[data-aa-session]")!;
+    const sessionEmail = root.querySelector<HTMLElement>("[data-aa-session-email]")!;
+    const logoutBtn = root.querySelector<HTMLButtonElement>("[data-aa-logout]")!;
+    const msgEl = root.querySelector<HTMLElement>("[data-aa-msg]")!;
+
+    function showMsg(text: string) {
+      msgEl.textContent = text;
+      msgEl.hidden = !text;
+    }
+
+    if (!isFirebaseConfigured) {
+      toggle.disabled = true;
+      toggle.title = "Configura Firebase para iniciar sesión";
+      return;
+    }
+
+    // Abrir / cerrar el panel
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    pop.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", () => {
+      pop.hidden = true;
+    });
+
+    // Login
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showMsg("Entrando…");
+      try {
+        await signInWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
+        passInput.value = "";
+        showMsg("");
+        pop.hidden = true;
+      } catch (err: any) {
+        showMsg("No se pudo entrar. Revisa correo/contraseña.");
+        console.warn("admin login:", err?.code || err);
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      signOut(auth).catch(() => {});
+      pop.hidden = true;
+    });
+
+    // Estado de sesion -> UI global
+    onAuthStateChanged(auth, (user) => {
+      const isAdmin = !!user;
+      document.body.classList.toggle("is-admin", isAdmin);
+      window.dispatchEvent(new CustomEvent("admin:change", { detail: { isAdmin } }));
+
+      if (isAdmin) {
+        label.textContent = user!.email || "Admin";
+        toggle.classList.add("is-on");
+        loginForm.hidden = true;
+        sessionBox.hidden = false;
+        sessionEmail.textContent = user!.email || "admin";
+      } else {
+        label.textContent = "Iniciar sesión";
+        toggle.classList.remove("is-on");
+        loginForm.hidden = false;
+        sessionBox.hidden = true;
+      }
+      showMsg("");
+    });
+  }
+</script>
+
+<style>
+  .admin-auth {
+    position: relative;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .aa-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s, color 0.2s;
+    max-width: 220px;
+  }
+
+  .aa-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .aa-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .aa-btn.is-on {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  .aa-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .aa-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 240px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem;
+    box-shadow: 0 8px 24px var(--shadow);
+    z-index: 100;
+  }
+
+  .aa-form,
+  .aa-session {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .aa-input {
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+  }
+
+  .aa-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .aa-submit {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s;
+  }
+
+  .aa-submit:hover {
+    background: var(--accent-hover);
+  }
+
+  .aa-logout {
+    background: var(--accent-red);
+  }
+
+  .aa-logout:hover {
+    background: #e06b63;
+  }
+
+  .aa-session-email {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .aa-msg {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--accent-orange);
+  }
+</style>
