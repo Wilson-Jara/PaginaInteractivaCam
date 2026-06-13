@@ -7,14 +7,25 @@ import Leaderboard from "../../components/Leaderboard.astro";
 <Layout title="Block Breaker - JUEGOS">
   <Navbar />
   <div id="game-wrapper">
-    <div id="game-container">
-      <canvas id="gameCanvas"></canvas>
-      <video id="camVideo" autoplay playsinline muted></video>
-      <div id="loading">Iniciando...</div>
-    </div>
     <aside id="leaderboard-side">
       <Leaderboard gameId="block-breaker" interactive={true} />
     </aside>
+
+    <div id="game-container">
+      <canvas id="gameCanvas"></canvas>
+      <div id="loading">Iniciando...</div>
+    </div>
+
+    <div id="right-col">
+      <div id="cam-box">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <canvas id="camOverlay"></canvas>
+        <span id="cam-label">📷 Cámara</span>
+      </div>
+      <div id="img-box">
+        <span class="img-placeholder">Espacio para imagen</span>
+      </div>
+    </div>
   </div>
 </Layout>
 
@@ -22,15 +33,52 @@ import Leaderboard from "../../components/Leaderboard.astro";
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #202124; }
-  #game-wrapper { width: 100vw; min-height: calc(100vh - 56px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; padding: 8px; background: #202124; }
-  #game-container { position: relative; }
-  #leaderboard-side { flex-shrink: 0; }
-  @media (max-width: 1100px) {
-    #game-wrapper { align-items: flex-start; }
+  #game-wrapper {
+    width: 100vw; min-height: calc(100vh - 56px);
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
+    gap: 16px; padding: 12px; background: #202124;
+  }
+  #leaderboard-side { flex-shrink: 0; order: 1; }
+  #game-container { position: relative; order: 2; }
+  #right-col {
+    order: 3; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 16px;
+    width: 360px;
   }
   #gameCanvas { display: block; border-radius: 4px; }
-  #camVideo { position: absolute; left: -9999px; top: -9999px; width: 320px; height: 240px; visibility: hidden; }
   #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #aaa; font: 16px 'Press Start 2P', monospace; text-align: center; line-height: 1.5; }
+
+  /* Cámara (arriba a la derecha) */
+  #cam-box {
+    position: relative; width: 100%; aspect-ratio: 4 / 3;
+    background: #15171a; border: 1px solid #3d5c72; border-radius: 6px;
+    overflow: hidden;
+  }
+  #camVideo, #camOverlay {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform: scaleX(-1); /* efecto espejo */
+  }
+  #cam-label {
+    position: absolute; top: 6px; left: 8px; z-index: 2;
+    font: 10px 'Press Start 2P', monospace; color: #c7d5e0;
+    background: rgba(0,0,0,0.45); padding: 3px 6px; border-radius: 4px;
+  }
+
+  /* Espacio para imagen (abajo a la derecha) */
+  #img-box {
+    width: 100%; aspect-ratio: 4 / 3;
+    background: #15171a; border: 1px dashed #3d5c72; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #img-box img { width: 100%; height: 100%; object-fit: cover; }
+  .img-placeholder { color: #66737a; font: 12px 'Press Start 2P', monospace; text-align: center; padding: 1rem; }
+
+  /* En pantallas angostas todo se apila */
+  @media (max-width: 1100px) {
+    #right-col { width: 100%; max-width: 480px; flex-direction: row; }
+    #cam-box, #img-box { flex: 1; }
+  }
 </style>
 
 <script is:inline type="module">
@@ -38,9 +86,9 @@ import Leaderboard from "../../components/Leaderboard.astro";
   const GAME_W = 640, GAME_H = 720;
   const HUD_H = 64;
   const WIN_W = GAME_W, WIN_H = GAME_H + HUD_H;
-  const CAM_W = 480, CAM_H = 360;
-  const TOTAL_W = WIN_W + CAM_W + 40; // Espacio extra para la camara
-  const TOTAL_H = Math.max(WIN_H, CAM_H);
+  // La cámara ahora vive en su propio panel (HTML), no dentro del lienzo.
+  const TOTAL_W = WIN_W;
+  const TOTAL_H = WIN_H;
 
   const BG = '#202124';
   const HUD_BG = '#202124';
@@ -168,14 +216,22 @@ import Leaderboard from "../../components/Leaderboard.astro";
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const video = document.getElementById('camVideo');
+  const camOverlay = document.getElementById('camOverlay');
+  const camCtx = camOverlay.getContext('2d');
+  const camBox = document.getElementById('cam-box');
   const loadingEl = document.getElementById('loading');
 
   let scale=1, dpr=1;
   function resizeCanvas() {
-    // En pantallas anchas la tabla de líderes va al lado: reservamos su ancho.
-    const sidePanel = window.innerWidth > 1100 ? 312 : 0;
-    const maxW = window.innerWidth - 20 - sidePanel;
-    const maxH = window.innerHeight - 76;
+    // En pantallas anchas: leaderboard (izq) + columna de cámara/imagen (der).
+    const sidePanels = window.innerWidth > 1100 ? 720 : 0;
+    const maxW = window.innerWidth - 24 - sidePanels;
+    const maxH = window.innerHeight - 80;
+    // Ajustar la resolución del lienzo de landmarks al tamaño visible de la cámara.
+    if (camBox) {
+      camOverlay.width = camBox.clientWidth;
+      camOverlay.height = camBox.clientHeight;
+    }
     scale = Math.min(maxW / TOTAL_W, maxH / TOTAL_H, 1.5);
     dpr = window.devicePixelRatio || 1;
     const cssW = Math.floor(TOTAL_W * scale);
@@ -708,52 +764,6 @@ import Leaderboard from "../../components/Leaderboard.astro";
     ctx.lineWidth = 2;
     ctx.strokeRect(1, 1, WIN_W-2, WIN_H-2);
 
-    // Dibujar la cámara a la derecha
-    if (video.readyState >= 2) {
-      const camX = WIN_W + 20;
-      const camY = 1; // Alineado arriba dejando espacio para el borde
-      ctx.save();
-      // Efecto espejo para la cámara en el canvas
-      ctx.translate(camX + CAM_W, camY);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, CAM_W, CAM_H);
-      ctx.restore();
-      
-      // Borde de la cámara
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(camX, camY, CAM_W, CAM_H);
-
-      if(currentLandmarks) {
-        const connections = [
-          [0,1],[1,2],[2,3],[3,4], // Pulgar
-          [0,5],[5,6],[6,7],[7,8], // Indice
-          [5,9],[9,10],[10,11],[11,12], // Medio
-          [9,13],[13,14],[14,15],[15,16], // Anular
-          [13,17],[17,18],[18,19],[19,20], // Menique
-          [0,17] // Base de la palma
-        ];
-        
-        ctx.strokeStyle = '#4285f4'; // Azul
-        ctx.lineWidth = 2;
-        for(let [i, j] of connections) {
-          const p1 = currentLandmarks[i];
-          const p2 = currentLandmarks[j];
-          ctx.beginPath();
-          ctx.moveTo(camX + (1 - p1.x) * CAM_W, camY + p1.y * CAM_H);
-          ctx.lineTo(camX + (1 - p2.x) * CAM_W, camY + p2.y * CAM_H);
-          ctx.stroke();
-        }
-        
-        ctx.fillStyle = '#0f0';
-        for(let p of currentLandmarks) {
-          ctx.beginPath();
-          ctx.arc(camX + (1 - p.x) * CAM_W, camY + p.y * CAM_H, 4, 0, Math.PI*2);
-          ctx.fill();
-        }
-      }
-    }
-
     ctx.textAlign='center';
     if(state===S.START){
       ctx.fillStyle='#aaaaaa';ctx.font='12px "Press Start 2P", monospace';
@@ -779,6 +789,36 @@ import Leaderboard from "../../components/Leaderboard.astro";
   // ---- MediaPipe ----
   let handDetector=null;
   let currentLandmarks=null;
+
+  // Dibuja el esqueleto de la mano sobre el panel de la cámara.
+  // El panel ya está reflejado por CSS (scaleX(-1)), así que usamos p.x directo.
+  const HAND_CONNECTIONS=[
+    [0,1],[1,2],[2,3],[3,4],          // Pulgar
+    [0,5],[5,6],[6,7],[7,8],          // Indice
+    [5,9],[9,10],[10,11],[11,12],     // Medio
+    [9,13],[13,14],[14,15],[15,16],   // Anular
+    [13,17],[17,18],[18,19],[19,20],  // Menique
+    [0,17]                            // Base de la palma
+  ];
+  function drawCamOverlay(){
+    const ow=camOverlay.width, oh=camOverlay.height;
+    camCtx.clearRect(0,0,ow,oh);
+    if(!currentLandmarks) return;
+    camCtx.strokeStyle='#4285f4';camCtx.lineWidth=2;
+    for(const [i,j] of HAND_CONNECTIONS){
+      const p1=currentLandmarks[i], p2=currentLandmarks[j];
+      camCtx.beginPath();
+      camCtx.moveTo(p1.x*ow, p1.y*oh);
+      camCtx.lineTo(p2.x*ow, p2.y*oh);
+      camCtx.stroke();
+    }
+    camCtx.fillStyle='#0f0';
+    for(const p of currentLandmarks){
+      camCtx.beginPath();
+      camCtx.arc(p.x*ow, p.y*oh, 3, 0, Math.PI*2);
+      camCtx.fill();
+    }
+  }
 
   const MP_VER='0.10.35';
   const MODEL_URL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
@@ -820,6 +860,8 @@ import Leaderboard from "../../components/Leaderboard.astro";
       return true;
     }catch(e){
       video.style.display='none';
+      const lbl=document.getElementById('cam-label');
+      if(lbl)lbl.textContent='Sin cámara';
       loadingEl.textContent='Sin camara. Usa mouse/teclado.';
       setTimeout(()=>loadingEl.style.display='none',2500);
       return false;
@@ -832,6 +874,7 @@ import Leaderboard from "../../components/Leaderboard.astro";
       const r=handDetector.detectForVideo(video,performance.now());
       if(r.landmarks&&r.landmarks.length>0){
         currentLandmarks = r.landmarks[0];
+        drawCamOverlay();
         const lm=currentLandmarks;
         // Usar nudillo central (9) que es mucho más estable que la punta del dedo
         const knuckle=lm[9];
@@ -850,6 +893,10 @@ import Leaderboard from "../../components/Leaderboard.astro";
           else if(state===S.START&&balls.length>0){for(let b of balls)b.launch();state=S.PLAYING;}
           else if(state===S.PLAYING&&paddle.stickyBall){paddle.stickyBall.active=true;paddle.stickyBall.stuck=false;paddle.stickyBall.launch();paddle.stickyBall=null;}
         }
+      } else {
+        // Sin mano: limpiar el esqueleto del panel de la cámara.
+        currentLandmarks = null;
+        drawCamOverlay();
       }
     }catch(e){console.warn('detectHands:',e);}
   }
