@@ -35,6 +35,11 @@ export interface GameRuntimeOptions {
   margin?: number;
   /** Margen vertical de la ventana (px). */
   verticalMargin?: number;
+  /**
+   * Elemento que entra en pantalla completa. Por defecto el contenedor del
+   * lienzo, para que el canvas pueda crecer y llenar la pantalla.
+   */
+  fullscreenTarget?: HTMLElement;
 }
 
 export class GameRuntime {
@@ -50,6 +55,10 @@ export class GameRuntime {
 
   private scale = 1;
   private dpr = 1;
+
+  // Botón de pantalla completa (DOM, sobre el lienzo).
+  private fsButton: HTMLButtonElement | null = null;
+  private readonly fullscreenTarget: HTMLElement;
 
   private readonly keys: Record<string, boolean> = {};
   private pointer: PointerInput | null = null;
@@ -69,24 +78,96 @@ export class GameRuntime {
     this.breakpoint = opts.breakpoint ?? 1100;
     this.margin = opts.margin ?? 24;
     this.verticalMargin = opts.verticalMargin ?? 80;
+    // El contenedor del lienzo es el que entra en fullscreen (así el canvas
+    // puede crecer); fallback al propio canvas si no tiene padre.
+    this.fullscreenTarget =
+      opts.fullscreenTarget ?? this.canvas.parentElement ?? this.canvas;
   }
 
   /** Monta listeners, inicializa el juego y arranca el loop. */
   start(): void {
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    document.addEventListener("fullscreenchange", () => this.onFullscreenChange());
+    this.createFullscreenButton();
     this.bindInput();
     this.game.init(this.ctx);
     requestAnimationFrame(this.loop);
   }
 
+  private isFullscreen(): boolean {
+    return document.fullscreenElement === this.fullscreenTarget;
+  }
+
+  /** Alterna pantalla completa sobre el contenedor del lienzo. */
+  toggleFullscreen(): void {
+    if (this.isFullscreen()) {
+      document.exitFullscreen?.();
+    } else {
+      this.fullscreenTarget.requestFullscreen?.().catch((e) => {
+        console.warn("[GameRuntime] No se pudo entrar en pantalla completa:", e);
+      });
+    }
+  }
+
+  private onFullscreenChange(): void {
+    const fs = this.isFullscreen();
+    // En fullscreen, centramos el lienzo sobre fondo negro.
+    this.fullscreenTarget.style.background = fs ? "#000" : "";
+    this.fullscreenTarget.style.display = fs ? "flex" : "";
+    this.fullscreenTarget.style.alignItems = fs ? "center" : "";
+    this.fullscreenTarget.style.justifyContent = fs ? "center" : "";
+    if (this.fsButton) this.fsButton.textContent = fs ? "⤢" : "⛶";
+    this.resize();
+  }
+
+  private createFullscreenButton(): void {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "⛶";
+    btn.title = "Pantalla completa";
+    btn.setAttribute("aria-label", "Pantalla completa");
+    Object.assign(btn.style, {
+      position: "absolute",
+      top: "8px",
+      right: "8px",
+      zIndex: "5",
+      width: "34px",
+      height: "34px",
+      border: "1px solid #3d5c72",
+      borderRadius: "6px",
+      background: "rgba(0,0,0,0.45)",
+      color: "#c7d5e0",
+      font: "16px monospace",
+      cursor: "pointer",
+      lineHeight: "1",
+    } as CSSStyleDeclaration);
+    btn.addEventListener("click", () => this.toggleFullscreen());
+    parent.appendChild(btn);
+    this.fsButton = btn;
+  }
+
   private resize(): void {
     const { width, height, maxScale = 1.5 } = this.game.config;
-    const sidePanels =
-      window.innerWidth > this.breakpoint ? this.sidePanelWidth : 0;
-    const maxW = window.innerWidth - this.margin - sidePanels;
-    const maxH = window.innerHeight - this.verticalMargin;
-    this.scale = Math.min(maxW / width, maxH / height, maxScale);
+    const fs = this.isFullscreen();
+    let maxW: number;
+    let maxH: number;
+    let cap: number;
+    if (fs) {
+      // En fullscreen ocupamos toda la pantalla, sin paneles ni tope de escala.
+      maxW = window.innerWidth;
+      maxH = window.innerHeight;
+      cap = Infinity;
+    } else {
+      const sidePanels =
+        window.innerWidth > this.breakpoint ? this.sidePanelWidth : 0;
+      maxW = window.innerWidth - this.margin - sidePanels;
+      maxH = window.innerHeight - this.verticalMargin;
+      cap = maxScale;
+    }
+    this.scale = Math.min(maxW / width, maxH / height, cap);
     this.dpr = window.devicePixelRatio || 1;
     const cssW = Math.floor(width * this.scale);
     const cssH = Math.floor(height * this.scale);
