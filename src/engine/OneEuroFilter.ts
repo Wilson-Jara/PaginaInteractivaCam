@@ -34,8 +34,11 @@ export class OneEuroFilter {
 
   constructor(opts: OneEuroOptions = {}) {
     this.freq = opts.freq ?? 60;
-    this.minCutoff = opts.minCutoff ?? 1.0;
-    this.beta = opts.beta ?? 0.01;
+    // minCutoff: suavizado en reposo. beta: responde al moverse (mas alto =
+    // menos lag al mover la mano rapido). beta alto es clave para que el
+    // movimiento se sienta directo sin reintroducir jitter en reposo.
+    this.minCutoff = opts.minCutoff ?? 1.2;
+    this.beta = opts.beta ?? 0.6;
     this.dCutoff = opts.dCutoff ?? 1.0;
   }
 
