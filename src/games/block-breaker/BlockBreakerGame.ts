@@ -200,7 +200,7 @@ export class BlockBreakerGame extends AbstractCameraGame {
     // Actualizar objetivo de la paleta desde mano o puntero.
     if (input.hand.present) {
       let tx = input.hand.x * GAME_W;
-      tx = (tx - GAME_W / 2) * 1.5 + GAME_W / 2; // amplificación 1.5x
+      tx = (tx - GAME_W / 2) * 2.3 + GAME_W / 2; // amplificación 2.3x (más sensible)
       this.handX = clamp(tx, 0, GAME_W);
       if (input.hand.fist) this.handleFist();
     } else if (input.pointer) {
@@ -210,7 +210,8 @@ export class BlockBreakerGame extends AbstractCameraGame {
 
     // Interpolación entre frames de detección (el suavizado anti-jitter ya
     // lo hace el HandTracker con One Euro; aquí solo rellenamos huecos).
-    this.smoothX += (this.handX - this.smoothX) * 0.5;
+    // Lerp alto = respuesta casi directa, sin añadir lag sobre el filtro.
+    this.smoothX += (this.handX - this.smoothX) * 0.85;
 
     if (this.state === "playing" || this.state === "start") {
       this.paddle.update(this.smoothX, input.keys);
