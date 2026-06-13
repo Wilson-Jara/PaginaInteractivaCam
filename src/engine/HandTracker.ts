@@ -23,6 +23,16 @@ const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERS
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
+// Detección simple de móvil: ahí la inferencia es más lenta, así que
+// reducimos resolución de cámara y procesamos frames más pequeños.
+const IS_MOBILE =
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent);
+
+// Ancho al que se reduce el frame antes de la inferencia (menos píxeles =
+// detección más rápida). En móvil bajamos más para ganar FPS.
+const INFER_WIDTH = IS_MOBILE ? 256 : 480;
+
 // Conexiones del esqueleto de la mano (para dibujar líneas entre landmarks).
 const HAND_CONNECTIONS: ReadonlyArray<[number, number]> = [
   [0, 1], [1, 2], [2, 3], [3, 4], // Pulgar
@@ -140,10 +150,12 @@ export class HandTracker {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          // En móvil pedimos menos resolución: la cámara captura más ligero
+          // y la inferencia es más rápida.
+          width: { ideal: IS_MOBILE ? 480 : 640 },
+          height: { ideal: IS_MOBILE ? 360 : 480 },
           facingMode: "user",
-          frameRate: { ideal: 60 },
+          frameRate: { ideal: 30 },
         },
       });
       this.video.srcObject = stream;
@@ -241,7 +253,16 @@ export class HandTracker {
     if (this.video.readyState < 2) return;
     this.workerBusy = true;
     const ts = performance.now();
-    createImageBitmap(this.video)
+    // Reducimos el frame antes de mandarlo: MediaPipe procesa cada píxel, así
+    // que menos píxeles = detección mucho más rápida (clave en móvil).
+    const vw = this.video.videoWidth || 640;
+    const vh = this.video.videoHeight || 480;
+    const scale = Math.min(1, INFER_WIDTH / vw);
+    createImageBitmap(this.video, {
+      resizeWidth: Math.round(vw * scale),
+      resizeHeight: Math.round(vh * scale),
+      resizeQuality: "low",
+    })
       .then((bmp) => {
         if (!this.worker || !this.running) {
           bmp.close();
