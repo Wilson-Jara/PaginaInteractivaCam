@@ -11,19 +11,45 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
+*.log
 
 # environment variables
 .env
-.env.production
+.env.*
+!.env.example
 
-# macOS-specific files
-.DS_Store
+# caches
+.cache/
+.temp/
+.tmp/
+*.tsbuildinfo
 
-# jetbrains setting folder
+# Python (backends en juegos/)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Claude Code (config local, no se sube)
+.claude/settings.local.json
+
+# editor / IDE
 .idea/
+*.swp
+*.swo
+.history/
+
+# OS files (macOS / Windows)
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
 # firebase
 .firebase/
 firebase-debug.log
+firestore-debug.log
+ui-debug.log
 *-debug.log
