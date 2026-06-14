@@ -27,7 +27,7 @@ export class BlockBreakerGame extends AbstractCameraGame {
     id: "block-breaker",
     width: TOTAL_W,
     height: TOTAL_H,
-    maxScale: 1.5,
+    maxScale: 2.5,
   };
 
   private state: State = "start";
@@ -108,8 +108,9 @@ export class BlockBreakerGame extends AbstractCameraGame {
   onKey(code: string, down: boolean): void {
     if (!down) return;
     if (code === "Space") {
+      // El SPACE solo lanza la bola / reanuda. NO reinicia en game over:
+      // tras perder, solo se reinicia con click en el botón central.
       if (this.state === "start") this.launchBalls();
-      else if (this.state === "over" || this.state === "win") this.resetGame();
       else if (this.state === "paused") this.state = "playing";
       else if (this.state === "playing" && this.paddle.stickyBall) this.releaseSticky();
     }
@@ -120,13 +121,15 @@ export class BlockBreakerGame extends AbstractCameraGame {
   }
 
   onPointerDown(): void {
-    if (this.state === "start" && this.balls.length > 0) this.launchBalls();
-    else if (this.state === "over" || this.state === "win") this.resetGame();
+    // El mouse YA NO juega: su único uso es reiniciar tras perder/ganar
+    // (click en el botón central de "PLAY AGAIN").
+    if (this.state === "over" || this.state === "win") this.resetGame();
   }
 
   private handleFist(): void {
-    if (this.state === "over" || this.state === "win") this.resetGame();
-    else if (this.state === "start" && this.balls.length > 0) this.launchBalls();
+    // El puño lanza la bola y suelta la bola pegada, pero NO reinicia en
+    // game over (eso es solo con click).
+    if (this.state === "start" && this.balls.length > 0) this.launchBalls();
     else if (this.state === "playing" && this.paddle.stickyBall) this.releaseSticky();
   }
 
@@ -197,15 +200,12 @@ export class BlockBreakerGame extends AbstractCameraGame {
 
   // ---- Update ----
   update(input: GameInput): void {
-    // Actualizar objetivo de la paleta desde mano o puntero.
+    // La paleta se controla SOLO con la mano (cámara). El mouse no juega.
     if (input.hand.present) {
       let tx = input.hand.x * GAME_W;
       tx = (tx - GAME_W / 2) * 2.3 + GAME_W / 2; // amplificación 2.3x (más sensible)
       this.handX = clamp(tx, 0, GAME_W);
       if (input.hand.fist) this.handleFist();
-    } else if (input.pointer) {
-      this.handX = input.pointer.x;
-      this.smoothX = input.pointer.x; // el puntero no se suaviza (respuesta directa)
     }
 
     // Interpolación entre frames de detección (el suavizado anti-jitter ya
@@ -214,7 +214,10 @@ export class BlockBreakerGame extends AbstractCameraGame {
     this.smoothX += (this.handX - this.smoothX) * 0.85;
 
     if (this.state === "playing" || this.state === "start") {
-      this.paddle.update(this.smoothX, input.keys);
+      // Con mano: la paleta sigue smoothX. Sin mano (solo teclado): pasamos
+      // null para que NO la arrastre al centro y respete las flechas/A-D.
+      const target = input.hand.present ? this.smoothX : null;
+      this.paddle.update(target, input.keys);
     }
 
     if (this.state === "playing") this.updatePlaying();

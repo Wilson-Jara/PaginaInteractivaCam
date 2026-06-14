@@ -123,12 +123,23 @@ export class GameRuntime {
       this.game.onPointerDown?.(p.x, p.y);
     });
 
+    const isTyping = (e: KeyboardEvent): boolean => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return false;
+      const tag = t.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
+    };
+
     document.addEventListener("keydown", (e) => {
+      // Si el usuario está escribiendo (p. ej. el nombre del récord), no
+      // capturamos las teclas: SPACE debe escribir el espacio, no jugar.
+      if (isTyping(e)) return;
       this.keys[e.code] = true;
       if (e.code === "Space") e.preventDefault();
       this.game.onKey?.(e.code, true);
     });
     document.addEventListener("keyup", (e) => {
+      if (isTyping(e)) return;
       this.keys[e.code] = false;
       this.game.onKey?.(e.code, false);
     });

@@ -34,7 +34,10 @@ const { gameId } = Astro.props;
       <span id="cam-label">📷 Cámara</span>
     </div>
     <div id="img-box">
+      <img id="user-img" alt="Imagen personalizada" hidden />
       <span class="img-placeholder">Espacio para imagen</span>
+      <input id="img-file" type="file" accept="image/*" hidden />
+      <button id="img-btn" type="button">📁 Seleccionar imagen</button>
     </div>
   </div>
 </div>
@@ -79,7 +82,15 @@ const { gameId } = Astro.props;
       // Predicción de latencia: adelanta el retraso del pipeline de cámara.
       predictMs: isMobile ? 150 : 90,
     });
-    const runtime = new GameRuntime({ game, canvas, tracker });
+    const runtime = new GameRuntime({
+      game,
+      canvas,
+      tracker,
+      verticalMargin: 68,
+      // Ancho real reservado por leaderboard(380) + cámara/imagen(560) +
+      // gaps(32) + padding(48), menos el margin(24) que ya resta el motor.
+      sidePanelWidth: 996,
+    });
 
     // Arrancamos el loop primero: el juego es jugable con mouse/teclado
     // aunque la cámara/MediaPipe tarden o fallen.
@@ -93,6 +104,47 @@ const { gameId } = Astro.props;
     }
   }
 
+  // --- Selector de imagen del cuadro derecho ---
+  // Permite elegir un archivo del PC; se muestra en el cuadro y se recuerda
+  // en localStorage (por juego) para que siga ahí al recargar.
+  function setupImagePicker() {
+    const imgBox = document.getElementById("img-box");
+    const imgEl = document.getElementById("user-img") as HTMLImageElement | null;
+    const fileInput = document.getElementById("img-file") as HTMLInputElement | null;
+    const imgBtn = document.getElementById("img-btn");
+    const placeholder = imgBox?.querySelector<HTMLElement>(".img-placeholder");
+    if (!imgBox || !imgEl || !fileInput || !imgBtn) return;
+
+    const key = "gamehub:userImage:" + (shell?.dataset.gameId || "default");
+
+    function applyImage(dataUrl: string) {
+      imgEl!.src = dataUrl;
+      imgEl!.hidden = false;
+      if (placeholder) placeholder.style.display = "none";
+    }
+
+    const saved = localStorage.getItem(key);
+    if (saved) applyImage(saved);
+
+    imgBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result);
+        applyImage(url);
+        try {
+          localStorage.setItem(key, url);
+        } catch {
+          // La imagen es muy grande para localStorage: se ve esta sesión igual.
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  setupImagePicker();
   boot();
 </script>
 
@@ -104,21 +156,28 @@ const { gameId } = Astro.props;
   #game-wrapper * { margin: 0; padding: 0; box-sizing: border-box; }
   #game-wrapper {
     width: 100%; height: calc(100vh - 56px);
-    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
-    gap: 16px; padding: 12px; background: #202124; overflow: hidden;
+    display: flex; align-items: stretch; justify-content: space-between;
+    gap: 16px; padding: 6px 24px; background: #202124; overflow: hidden;
   }
-  #leaderboard-side { flex-shrink: 0; order: 1; }
-  #game-container { position: relative; order: 2; }
+  /* Columna izquierda: leaderboard en la orilla izquierda, a toda la altura.
+     Crece (flex-grow) para absorber el espacio que deja el lienzo del juego. */
+  #leaderboard-side { flex: 1 1 380px; display: flex; }
+  #leaderboard-side .leaderboard { width: 100%; }
+  /* Centro: el contenedor se ciñe al lienzo (no deja huecos laterales). */
+  #game-container {
+    position: relative; flex: 0 0 auto;
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  /* Columna derecha: cámara arriba + imagen ocupando el resto. */
   #right-col {
-    order: 3; flex-shrink: 0;
-    display: flex; flex-direction: column; gap: 16px;
-    width: 360px;
+    flex: 0 0 560px;
+    display: flex; flex-direction: column; gap: 6px;
   }
   #gameCanvas { display: block; border-radius: 4px; }
   #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #aaa; font: 16px 'Press Start 2P', monospace; text-align: center; line-height: 1.5; }
 
   #cam-box {
-    position: relative; width: 100%; aspect-ratio: 4 / 3;
+    position: relative; width: 100%; flex: 1 1 0; min-height: 0;
     background: #15171a; border: 1px solid #3d5c72; border-radius: 6px;
     overflow: hidden;
   }
@@ -133,16 +192,33 @@ const { gameId } = Astro.props;
   }
 
   #img-box {
-    width: 100%; aspect-ratio: 4 / 3;
+    position: relative;
+    width: 100%; flex: 1 1 0; min-height: 0;
     background: #15171a; border: 1px dashed #3d5c72; border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
-  #img-box img { width: 100%; height: 100%; object-fit: cover; }
+  #img-box img { width: 100%; height: 100%; object-fit: contain; }
   .img-placeholder { color: #66737a; font: 12px 'Press Start 2P', monospace; text-align: center; padding: 1rem; }
+  #img-btn {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    z-index: 2; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #3d5c72; background: rgba(0,0,0,0.6); color: #c7d5e0;
+    font: 11px 'Press Start 2P', monospace; transition: background 0.2s;
+  }
+  #img-btn:hover { background: rgba(102,192,244,0.85); color: #fff; }
 
   @media (max-width: 1100px) {
-    #right-col { width: 100%; max-width: 480px; flex-direction: row; }
-    #cam-box, #img-box { flex: 1; }
+    html, body { overflow: auto; }
+    #game-wrapper {
+      flex-direction: column; align-items: center; justify-content: flex-start;
+      height: auto; min-height: calc(100vh - 56px); overflow: visible;
+    }
+    #leaderboard-side, #right-col {
+      flex: none; width: 100%; max-width: 480px;
+    }
+    #game-container { margin-right: 0; }
+    #right-col { flex-direction: row; }
+    #cam-box, #img-box { flex: 1; aspect-ratio: 4 / 3; }
   }
 </style>

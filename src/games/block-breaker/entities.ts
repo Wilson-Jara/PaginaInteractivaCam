@@ -470,12 +470,9 @@ export function parseLevel(data: string[]): Block[] {
       else if (ch === "T") b.push(new Block(c, r, BT_TNT, base));
       else if (ch === "*") b.push(new Block(c, r, BT_POWERUP, base));
       else {
-        const col = COLOR_MAP[ch] || base;
-        const rnd = Math.random();
-        if (rnd < 0.04) b.push(new Block(c, r, BT_POWERUP, col)); // % reducido de mejoras
-        else if (rnd < 0.15) b.push(new Block(c, r, BT_DOUBLE, col));
-        else if (rnd < 0.17) b.push(new Block(c, r, BT_TNT, col));
-        else b.push(new Block(c, r, BT_NORMAL, col));
+        // Bloque normal del color indicado: sin azar, para conservar la
+        // simetría exacta del diseño del nivel.
+        b.push(new Block(c, r, BT_NORMAL, COLOR_MAP[ch] || base));
       }
     }
   }

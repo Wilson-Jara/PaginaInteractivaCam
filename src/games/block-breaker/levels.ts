@@ -6,8 +6,8 @@
 // ============================================================
 
 // Dimensiones del área de juego + HUD.
-export const GAME_W = 640;
-export const GAME_H = 720;
+export const GAME_W = 950;
+export const GAME_H = 930;
 export const HUD_H = 64;
 export const WIN_W = GAME_W;
 export const WIN_H = GAME_H + HUD_H;
@@ -30,11 +30,13 @@ export const ROW_COLORS = [
   G_RED, G_YELLOW, G_GREEN, G_BLUE, G_PURPLE, G_ORANGE, G_TEAL, G_PINK,
 ];
 
-// Grilla de bloques.
-export const COLS = 8;
-export const ROWS = 4;
+// Grilla de bloques. COLS impar -> hay columna central, así los diseños
+// pueden ser simétricos (espejo izquierda/derecha). Los niveles se diseñan
+// con un número IMPAR de filas para mantener la simetría vertical también.
+export const COLS = 13;
+export const ROWS = 7;
 export const BLK_GAP = 2;
-export const BLK_MARGIN = 40;
+export const BLK_MARGIN = 44;
 export const BLK_H = 28;
 export const BLK_W = Math.floor(
   (GAME_W - 2 * BLK_MARGIN - BLK_GAP * (COLS - 1)) / COLS
@@ -88,15 +90,13 @@ export const PU_LABELS: Record<string, string> = {
   [PU_LIFE]: "❤️",
 };
 
-// Tabla de probabilidad ponderada: heart es raro, multi/expand comunes.
+// Power-ups activos: multi-bola, paleta larga, fireball y slow.
+// (Se quitaron imán/sticky, vida extra y láser.)
 export const PU_WEIGHTS: ReadonlyArray<[string, number]> = [
-  [PU_MULTI, 26],
-  [PU_LONG, 22],
-  [PU_FIRE, 14],
-  [PU_LASER, 14],
-  [PU_SLOW, 12],
-  [PU_STICKY, 8],
-  [PU_LIFE, 4],
+  [PU_MULTI, 30],
+  [PU_LONG, 28],
+  [PU_FIRE, 22],
+  [PU_SLOW, 20],
 ];
 
 export const POWERUP_SIZE = 24;
@@ -114,26 +114,119 @@ export const COLOR_MAP: Record<string, string> = {
   K: G_PINK,
 };
 
-// 10 niveles (mapas ASCII). '.'=vacío, 'D'=doble/plateado, 'T'=TNT, '*'=power-up.
+// Niveles (mapas ASCII). Cada fila mide COLS (13) caracteres y todos los
+// diseños son SIMÉTRICOS en espejo (col c == col 12-c) con un número impar
+// de filas. '.'=vacío, letras=color, 'D'=plateado(3 golpes), 'T'=TNT,
+// '*'=power-up. Diseños inspirados en clásicos de Arkanoid/Breakout.
 export const LEVELS: string[][] = [
-  // Nivel 1: Muro Clásico (Breakout) - calentamiento rápido
-  ["RRRRRRRR", "OOOOOOOO", "YYYYYYYY", "GGGGGGGG"],
-  // Nivel 2: Damero (Arkanoid) - ángulos difíciles, pocas piezas
-  ["R.R.R.R.", ".Y.Y.Y.Y", "G.G.G.G.", ".B.B.B.B", "P.P.P.P."],
-  // Nivel 3: Pirámide con núcleo TNT - colapso rápido
-  ["...TT...", "..O**O..", ".YYYYYY.", "GGGGGGGG"],
-  // Nivel 4: Fortaleza - borde plateado, hay que entrar al núcleo
-  ["DRRRRRRD", "R.T**T.R", "R......R", "DRRRRRRD"],
-  // Nivel 5: Space Invader (homenaje) - pictórico
-  ["..G..G..", ".GGGGGG.", "G.GGGG.G", "GGG**GGG", "G.G..G.G", "..G..G.."],
-  // Nivel 6: Embudos - carriles verticales que canalizan la bola
-  ["B.B.T.B.", "B.B.B.B.", "B.B*B.B.", "B.B.B.B.", "B.B.T.B."],
-  // Nivel 7: Doble Muralla - filas plateadas que bloquean el avance
-  ["DDDDDDDD", "P......P", "T..**..T", "P......P", "DDDDDDDD"],
-  // Nivel 8: Cruz Diagonal - bolsillos cerrados con TNT
-  ["D......D", ".O....O.", "..R**R..", "...TT...", "..R**R..", ".O....O.", "D......D"],
-  // Nivel 9: Diamante - plateado en el borde, TNT y mejoras dentro
-  ["...DD...", "..R**R..", ".Y.TT.Y.", "G..GG..G", ".Y.TT.Y.", "..R**R..", "...DD..."],
-  // Nivel 10: Jefe Final - denso, TNT encadenado y plateado mixto
-  ["DTDTDTDT", "TDTDTDTD", "D.P**P.D", "TDTDTDTD", "DTDTDTDT", "P......P"],
+  // 1) Pirámide arcoíris — escalera de colores, calentamiento vistoso.
+  [
+    "......R......",
+    ".....OOO.....",
+    "....YYYYY....",
+    "...GGG*GGG...",
+    "..BBBBBBBBB..",
+    ".PPPPPPPPPPP.",
+    "KKKKKKKKKKKKK",
+  ],
+  // 2) Diamante — anidado de colores, puntas de TNT.
+  [
+    "......T......",
+    ".....OYO.....",
+    "....OYGYO....",
+    "...OYG*GYO...",
+    "....OYGYO....",
+    ".....OYO.....",
+    "......T......",
+  ],
+  // 3) Corazón — relleno, power-ups en el núcleo.
+  [
+    "..KKK...KKK..",
+    ".KKKKKKKKKKK.",
+    "KKKKKKKKKKKKK",
+    "KKKKKK*KKKKKK",
+    ".KKKKKKKKKKK.",
+    "...KKK*KKK...",
+    ".....KKK.....",
+  ],
+  // 4) Estrella — destello de rayos amarillos.
+  [
+    "......Y......",
+    "...Y..Y..Y...",
+    "....YYYYY....",
+    "YYYYYY*YYYYYY",
+    "....YYYYY....",
+    "...Y..Y..Y...",
+    "......Y......",
+  ],
+  // 5) Space Invader — homenaje pictórico.
+  [
+    "..G.......G..",
+    "...G.....G...",
+    "..GGGGGGGGG..",
+    ".GG.GG*GG.GG.",
+    "GGGGGGGGGGGGG",
+    "G.G.......G.G",
+    "..G.......G..",
+  ],
+  // 6) Mariposa — alas naranjas, cuerpo amarillo.
+  [
+    "PP.........PP",
+    "PPP.......PPP",
+    "OOOO..Y..OOOO",
+    "OOOOO.*.OOOOO",
+    "OOOO..Y..OOOO",
+    "PPP...Y...PPP",
+    "PP....Y....PP",
+  ],
+  // 7) Flor — pétalos rojos y corazón amarillo.
+  [
+    "...RR...RR...",
+    "..RRR.R.RRR..",
+    ".RRR.RYR.RRR.",
+    "RR.RYY*YYR.RR",
+    ".RRR.RYR.RRR.",
+    "..RRR.R.RRR..",
+    "...RR...RR...",
+  ],
+  // 8) Fantasma — cuerpo morado con ojos huecos.
+  [
+    "....PPPPP....",
+    "..PPPPPPPPP..",
+    ".PPPPPPPPPPP.",
+    ".PPP.PPP.PPP.",
+    ".PPPPP*PPPPP.",
+    ".PPPPPPPPPPP.",
+    ".P.P.P.P.P.P.",
+  ],
+  // 9) Calavera — toda plateada (3 golpes): muy resistente.
+  [
+    "..DDDDDDDDD..",
+    ".DDDDDDDDDDD.",
+    "DDD..DDD..DDD",
+    ".DDDDD*DDDDD.",
+    "..DDDDDDDDD..",
+    "..D.D.D.D.D..",
+    "...D.D.D.D...",
+  ],
+  // 10) Equis — diagonales con TNT en las puntas y el cruce.
+  [
+    "T...........T",
+    "..B.......B..",
+    "....B.*.B....",
+    "......T......",
+    "....G...G....",
+    "..G.......G..",
+    "G...........G",
+  ],
+  // 11) Jefe final — fortaleza concéntrica plateada con núcleo de TNT.
+  [
+    "DDDDDDDDDDDDD",
+    "D...........D",
+    "D.DDDDDDDDD.D",
+    "D.D..T*T..D.D",
+    "D.DDDDDDDDD.D",
+    "D...........D",
+    "DDDDDDDDDDDDD",
+  ],
 ];
