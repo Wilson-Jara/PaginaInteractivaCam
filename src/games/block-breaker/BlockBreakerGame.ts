@@ -429,7 +429,7 @@ export class BlockBreakerGame extends AbstractCameraGame {
   }
 
   private drawGameOver(c: CanvasRenderingContext2D): void {
-    c.fillStyle = "rgba(32,33,36,0.85)";
+    c.fillStyle = "rgba(12,10,18,0.85)";
     c.fillRect(0, HUD_H, GAME_W, GAME_H);
     const boxW = 340;
     const boxH = 260;
@@ -465,7 +465,7 @@ export class BlockBreakerGame extends AbstractCameraGame {
     texts: Array<[string, string, string, number]>,
     bgA = 0.55
   ): void {
-    c.fillStyle = `rgba(32,33,36,${bgA})`;
+    c.fillStyle = `rgba(12,10,18,${bgA})`;
     c.fillRect(0, HUD_H, GAME_W, GAME_H);
     const cy = HUD_H + GAME_H / 2;
     c.textAlign = "center";

@@ -14,8 +14,8 @@ export const WIN_H = GAME_H + HUD_H;
 export const TOTAL_W = WIN_W;
 export const TOTAL_H = WIN_H;
 
-export const BG = "#202124";
-export const HUD_BG = "#202124";
+export const BG = "#0c0a12";
+export const HUD_BG = "#0c0a12";
 
 // Colores de Google.
 export const G_BLUE = "#4285f4";

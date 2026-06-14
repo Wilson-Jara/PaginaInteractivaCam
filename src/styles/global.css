@@ -1,25 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Paleta estilo Aimlabs: fondos casi negros, acento teal. */
-  --bg-primary: #0e0e10;
-  --bg-secondary: #1a1a1d;
-  --bg-card: #161618;
-  --bg-card-hover: #1f1f23;
-  --bg-navbar: #0a0a0b;
-  --bg-footer: #0a0a0b;
-  --text-primary: #e8e9ec;
-  --text-secondary: #9a9ba1;
-  --text-muted: #6b6c72;
-  --accent: #35d6c3;
-  --accent-hover: #5fe6d6;
-  --accent-green: #35d6a8;
-  --accent-orange: #e5c06e;
-  --accent-red: #cd544c;
+  /* Paleta estilo Voltaic: fondos casi negros, acento morado vibrante
+     con un rojo complementario. */
+  --bg-primary: #0c0a12;
+  --bg-secondary: #18141f;
+  --bg-card: #141019;
+  --bg-card-hover: #1f1830;
+  --bg-navbar: #08070c;
+  --bg-footer: #08070c;
+  --text-primary: #ece9f1;
+  --text-secondary: #9d97ad;
+  --text-muted: #6c6678;
+  --accent: #a855f7;
+  --accent-hover: #c084fc;
+  --accent-green: #8b5cf6;
+  --accent-orange: #f0567a;
+  --accent-red: #f0567a;
   --accent-yellow: #e5c06e;
-  --border: #2a2a2e;
+  --border: #2a2436;
   --shadow: rgba(0, 0, 0, 0.6);
-  --tag-bg: rgba(53, 214, 195, 0.12);
+  --tag-bg: rgba(168, 85, 247, 0.14);
 }
 
 * {
