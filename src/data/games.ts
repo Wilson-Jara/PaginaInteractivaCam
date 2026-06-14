@@ -16,7 +16,7 @@ export const games: Game[] = [
   {
     id: "block-breaker",
     title: "Block Breaker",
-    cover: "",
+    cover: "/covers/block-breaker.webp",
     tags: ["MediaPipe", "Pygame", "OpenCV"],
     size: "",
     category: "MediaPipe",
@@ -28,7 +28,7 @@ export const games: Game[] = [
   {
     id: "flappy",
     title: "Flappy Bird",
-    cover: "",
+    cover: "/covers/flappy.webp",
     tags: ["MediaPipe"],
     size: "",
     category: "MediaPipe",
