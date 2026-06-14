@@ -18,6 +18,7 @@ export type GameFactory = () => Promise<CameraGame>;
 const registry: Record<string, GameFactory> = {
   "block-breaker": async () =>
     (await import("../games/block-breaker")).createBlockBreaker(),
+  "flappy": async () => (await import("../games/flappy")).createFlappy(),
 };
 
 /** Devuelve la factory de un juego jugable, o null si no existe. */
