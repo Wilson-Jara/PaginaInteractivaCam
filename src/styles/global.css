@@ -1,24 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg-primary: #1b2838;
-  --bg-secondary: #2a475e;
-  --bg-card: #213345;
-  --bg-card-hover: #2d4a5f;
-  --bg-navbar: #171a21;
-  --bg-footer: #171a21;
-  --text-primary: #c7d5e0;
-  --text-secondary: #8f98a0;
-  --text-muted: #66737a;
-  --accent: #66c0f4;
-  --accent-hover: #8ed3f7;
-  --accent-green: #5ba32b;
+  /* Paleta estilo Aimlabs: fondos casi negros, acento teal. */
+  --bg-primary: #0e0e10;
+  --bg-secondary: #1a1a1d;
+  --bg-card: #161618;
+  --bg-card-hover: #1f1f23;
+  --bg-navbar: #0a0a0b;
+  --bg-footer: #0a0a0b;
+  --text-primary: #e8e9ec;
+  --text-secondary: #9a9ba1;
+  --text-muted: #6b6c72;
+  --accent: #35d6c3;
+  --accent-hover: #5fe6d6;
+  --accent-green: #35d6a8;
   --accent-orange: #e5c06e;
   --accent-red: #cd544c;
   --accent-yellow: #e5c06e;
-  --border: #3d5c72;
+  --border: #2a2a2e;
   --shadow: rgba(0, 0, 0, 0.6);
-  --tag-bg: rgba(102, 192, 244, 0.12);
+  --tag-bg: rgba(53, 214, 195, 0.12);
 }
 
 * {

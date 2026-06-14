@@ -37,18 +37,6 @@ export const games: Game[] = [
     mediapipe: true,
     playable: true,
   },
-  ...Array.from({ length: 28 }, (_, i) => ({
-    id: `juego-${i + 3}`,
-    title: `Juego ${i + 3}`,
-    cover: "",
-    tags: ["Proximamente"],
-    size: "",
-    category: ["MediaPipe", "OpenCV", "Pygame"][i % 3],
-    description: "",
-    pythonBackend: true,
-    mediapipe: i % 3 === 0,
-    playable: false,
-  })),
 ];
 
 export const categories = [

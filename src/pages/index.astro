@@ -12,8 +12,10 @@ import { games } from "../data/games";
   <main class="main-content">
     <div class="content-container">
       <div class="page-header">
-        <h1 class="page-title">Todos los juegos</h1>
+        <h1 class="page-title">Juegos</h1>
         <p class="page-description">
+          Juegos interactivos controlados con la cámara y tus manos mediante
+          MediaPipe. Elige uno y empieza a jugar.
         </p>
       </div>
 
@@ -25,19 +27,11 @@ import { games } from "../data/games";
             cover={game.cover}
             tags={game.tags}
             size={game.size}
+            category={game.category}
+            description={game.description}
+            playable={game.playable}
           />
         ))}
-      </div>
-
-      <div class="pagination">
-        <span class="page-item disabled">&laquo; Previous</span>
-        <span class="page-item active">1</span>
-        <a href="#" class="page-item">2</a>
-        <a href="#" class="page-item">3</a>
-        <a href="#" class="page-item">4</a>
-        <a href="#" class="page-item">5</a>
-        <span class="page-item dots">...</span>
-        <a href="#" class="page-item">Next &raquo;</a>
       </div>
     </div>
   </main>
@@ -51,101 +45,54 @@ import { games } from "../data/games";
   }
 
   .content-container {
-    max-width: 1400px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 2.5rem 1.5rem;
   }
 
   .page-header {
-    margin-bottom: 2rem;
+    margin-bottom: 2.2rem;
   }
 
   .page-title {
-    font-size: 1.6rem;
-    font-weight: 700;
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
     color: var(--text-primary);
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.5rem;
   }
 
   .page-description {
-    font-size: 0.88rem;
+    font-size: 1rem;
     color: var(--text-secondary);
-    max-width: 900px;
-    line-height: 1.7;
+    max-width: 760px;
+    line-height: 1.6;
   }
 
+  /* Grilla de 3 columnas con tarjetas grandes, como Aimlabs. */
   .games-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1.5rem 1.2rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.6rem;
   }
 
-  .pagination {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    margin-top: 2.5rem;
-    flex-wrap: wrap;
-  }
-
-  .page-item {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .page-item:hover:not(.disabled):not(.active):not(.dots) {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-  }
-
-  .page-item.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-  }
-
-  .page-item.disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .page-item.dots {
-    background: none;
-    border: none;
-    cursor: default;
-  }
-
-  @media (max-width: 1200px) {
-    .games-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
-  }
-
-  @media (max-width: 900px) {
-    .games-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  @media (max-width: 600px) {
+  @media (max-width: 1000px) {
     .games-grid {
       grid-template-columns: repeat(2, 1fr);
-      gap: 1rem 0.75rem;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .games-grid {
+      grid-template-columns: 1fr;
     }
 
     .page-title {
-      font-size: 1.3rem;
+      font-size: 2rem;
     }
 
     .content-container {
-      padding: 1rem;
+      padding: 1.5rem 1rem;
     }
   }
 </style>

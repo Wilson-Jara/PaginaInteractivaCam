@@ -1,13 +1,35 @@
 ---
+// ============================================================
+//  TARJETA DE JUEGO — estilo Aimlabs (artículo)
+// ============================================================
+//  Imagen grande arriba con marca de agua del logo, línea de
+//  categorías en teal, título en negrita, descripción corta y
+//  una fila inferior con autor + estado (jugable / próximamente).
+// ============================================================
 interface Props {
   title: string;
   cover: string;
   tags: string[];
   size?: string;
   id: string;
+  category?: string;
+  description?: string;
+  playable?: boolean;
 }
 
-const { title, cover, tags, size, id } = Astro.props;
+const {
+  title,
+  cover,
+  tags,
+  id,
+  category,
+  description,
+  playable = false,
+} = Astro.props;
+
+// Categorías mostradas tipo "in JUEGOS, MediaPipe" (como Aimlabs).
+const cats = ["JUEGOS", ...(category ? [category] : [])];
+const status = playable ? "Jugable ahora" : "Próximamente";
 ---
 
 <a href={`/games/${id}`} class="game-card">
@@ -16,7 +38,7 @@ const { title, cover, tags, size, id } = Astro.props;
       <img src={cover} alt={title} loading="lazy" />
     ) : (
       <div class="card-placeholder">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="2" y="6" width="20" height="12" rx="2"/>
           <circle cx="12" cy="12" r="2"/>
           <path d="M7 10v4"/>
@@ -26,17 +48,35 @@ const { title, cover, tags, size, id } = Astro.props;
         </svg>
       </div>
     )}
-    {size && <span class="card-size-badge">{size}</span>}
+    <span class="card-watermark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2 1 21h22L12 2zm0 6 6 10H6l6-10z"/>
+      </svg>
+      JUEGOS
+    </span>
   </div>
+
   <div class="card-info">
+    <p class="card-cats">
+      <span class="card-cats-in">in</span>
+      {cats.map((c, i) => (
+        <>
+          <span class="card-cat">{c}</span>{i < cats.length - 1 && <span class="card-cat-sep">,</span>}
+        </>
+      ))}
+    </p>
+
     <h6 class="card-title">{title}</h6>
-    {tags.length > 0 && (
-      <p class="card-tags">
-        {tags.map((tag) => (
-          <span class="tag">[{tag}]</span>
-        ))}
-      </p>
-    )}
+
+    {description && <p class="card-desc">{description}</p>}
+
+    <div class="card-foot">
+      <span class="card-avatar" aria-hidden="true"></span>
+      <span class="card-meta">
+        <span class="card-by">por <strong>GameHub</strong></span>
+        <span class="card-status" data-playable={playable ? "1" : "0"}>{status}</span>
+      </span>
+    </div>
   </div>
 </a>
 
@@ -44,11 +84,16 @@ const { title, cover, tags, size, id } = Astro.props;
   .game-card {
     display: flex;
     flex-direction: column;
-    transition: all 0.2s ease;
-    position: relative;
+    background: var(--bg-card);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    overflow: hidden;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
 
   .game-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border);
     transform: translateY(-2px);
   }
 
@@ -58,27 +103,20 @@ const { title, cover, tags, size, id } = Astro.props;
 
   .card-image {
     position: relative;
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
-    border-radius: 6px;
     background: var(--bg-secondary);
-    border: 1px solid var(--border);
   }
 
   .card-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
+    transition: transform 0.4s ease;
   }
 
   .game-card:hover .card-image img {
-    transform: scale(1.03);
-  }
-
-  .game-card:hover .card-image {
-    border-color: var(--accent);
-    box-shadow: 0 4px 20px rgba(79, 195, 247, 0.15);
+    transform: scale(1.04);
   }
 
   .card-placeholder {
@@ -95,54 +133,110 @@ const { title, cover, tags, size, id } = Astro.props;
     opacity: 0.3;
   }
 
-  .card-size-badge {
+  /* Marca de agua del logo arriba-derecha, como Aimlabs. */
+  .card-watermark {
     position: absolute;
-    bottom: 6px;
-    right: 6px;
-    background: rgba(0, 0, 0, 0.75);
-    color: var(--text-primary);
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.15rem 0.5rem;
-    border-radius: 3px;
-    backdrop-filter: blur(4px);
+    top: 10px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  .card-watermark svg {
+    color: var(--accent);
   }
 
   .card-info {
-    padding: 0.6rem 0.2rem 0;
+    padding: 1rem 1.1rem 1.1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .card-cats {
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+
+  .card-cats-in {
+    color: var(--text-muted);
+    font-style: italic;
+    margin-right: 0.3rem;
+  }
+
+  .card-cat {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .card-cat-sep {
+    color: var(--accent);
+    margin-right: 0.3rem;
   }
 
   .card-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    line-height: 1.3;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.25;
     color: var(--text-primary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     transition: color 0.2s;
   }
 
-  .card-tags {
-    font-size: 0.72rem;
-    color: var(--accent-orange);
-    font-weight: 500;
-    line-height: 1.4;
+  .card-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
 
-  .tag {
-    white-space: nowrap;
+  .card-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: auto;
+    padding-top: 0.7rem;
   }
 
-  .card-title:hover {
+  .card-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 0.75rem;
+  }
+
+  .card-by {
+    color: var(--text-secondary);
+  }
+
+  .card-by strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .card-status {
+    color: var(--text-muted);
+  }
+
+  .card-status[data-playable="1"] {
     color: var(--accent);
   }
 </style>
