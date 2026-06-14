@@ -71,7 +71,9 @@ export class BlockBreakerGame extends AbstractCameraGame {
     this.blocks = parseLevel(LEVELS[idx]);
     this.paddle = new Paddle();
     const ball = new Ball(GAME_W / 2, PAD_Y - BALL_R - 1);
-    ball.speed = BALL_BASE_SPD + (ln - 1) * 0.5;
+    // Cada nivel sube notablemente la velocidad de salida de la bola.
+    ball.speed = BALL_BASE_SPD + (ln - 1) * 1.2;
+    ball.setSpeed(ball.speed); // aplica la velocidad al vector real (vx/vy)
     this.balls = [ball];
     this.particles = [];
     this.powerups = [];
@@ -309,7 +311,8 @@ export class BlockBreakerGame extends AbstractCameraGame {
         this.signalGameOver();
       } else {
         const nb = new Ball(this.paddle.x + this.paddle.w / 2, PAD_Y - BALL_R - 1);
-        nb.speed = BALL_BASE_SPD + (this.level - 1) * 0.5;
+        nb.speed = BALL_BASE_SPD + (this.level - 1) * 1.2;
+        nb.setSpeed(nb.speed);
         this.balls = [nb];
         this.combo = 0;
         this.state = "start";

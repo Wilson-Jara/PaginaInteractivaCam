@@ -176,8 +176,8 @@ export class PowerUp {
 }
 
 export class Paddle {
-  baseW = 120;
-  w = 120;
+  baseW = 100;
+  w = 100;
   h = 12;
   x: number;
   y: number;

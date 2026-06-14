@@ -44,15 +44,17 @@ export const BLK_W = Math.floor(
 export const GRID_TOP = HUD_H + 40;
 
 // Paleta y bola.
-export const PAD_W = 120;
+// Paleta más corta (100) = más difícil de atajar.
+export const PAD_W = 100;
 export const PAD_H = 12;
 export const PAD_Y = GAME_H - 44;
 export const PAD_RADIUS = 6;
-export const PAD_SPEED = 12;
+export const PAD_SPEED = 16;
 export const BALL_R = 7;
-export const BALL_BASE_SPD = 8;
-export const BALL_SPD_INC = 0.15;
-export const BALL_MAX_SPD = 16;
+// Velocidades subidas: arranque más rápido, acelera más y techo más alto.
+export const BALL_BASE_SPD = 12;
+export const BALL_SPD_INC = 0.28;
+export const BALL_MAX_SPD = 24;
 export const MAX_LIVES = 3;
 
 // Tipos de bloque.
@@ -100,7 +102,7 @@ export const PU_WEIGHTS: ReadonlyArray<[string, number]> = [
 ];
 
 export const POWERUP_SIZE = 24;
-export const POWERUP_FALL_SPD = 3;
+export const POWERUP_FALL_SPD = 4;
 
 // Mapa carácter -> color para los mapas ASCII.
 export const COLOR_MAP: Record<string, string> = {
